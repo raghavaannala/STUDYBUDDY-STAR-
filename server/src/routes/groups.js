@@ -5,6 +5,19 @@ const { v4: uuidv4 } = require('uuid');
 // In-memory storage for groups
 const groups = new Map();
 
+// Add some test data
+const testGroup = {
+  id: uuidv4(),
+  name: "Test Study Group",
+  description: "A test group for API verification",
+  createdBy: "test-user",
+  members: ["test-user"],
+  privateId: "test123",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+};
+groups.set(testGroup.id, testGroup);
+
 // Debug middleware
 router.use((req, res, next) => {
   console.log('\n=== Incoming Request ===');
@@ -16,6 +29,22 @@ router.use((req, res, next) => {
   console.log('Query:', req.query);
   console.log('Params:', req.params);
   next();
+});
+
+// Get all groups (for testing)
+router.get('/', (req, res) => {
+  try {
+    console.log('\n=== Fetching All Groups ===');
+    const allGroups = Array.from(groups.values());
+    console.log('All groups:', allGroups);
+    return res.json(allGroups);
+  } catch (error) {
+    console.error('Error fetching all groups:', error);
+    return res.status(500).json({ 
+      error: 'Failed to fetch groups',
+      details: error.message
+    });
+  }
 });
 
 // Get user's groups

@@ -2,7 +2,7 @@ import { Group, CallState } from '../types';
 
 // API URL configuration
 const API_URL = process.env.NODE_ENV === 'production'
-  ? 'https://studybuddy-backend.netlify.app/api'
+  ? 'https://studybuddy-backend.netlify.app/.netlify/functions/api'
   : 'http://localhost:3001/api';
 
 // Debug flag - only enable in development

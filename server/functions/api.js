@@ -13,13 +13,17 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://studybuddy-app.netlify.app',
-  'https://studybuddy-backend.netlify.app'
+  'http://localhost:8080',
+  'https://studybuddy300.netlify.app'
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       console.log('Blocked by CORS:', origin);
@@ -36,26 +40,72 @@ app.use(express.json());
 
 // Debug middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   next();
 });
 
 // Health check endpoint
-app.get('/.netlify/functions/api/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV
+  });
 });
 
 // API routes
-app.use('/.netlify/functions/api/groups', groupRoutes);
+app.use('/groups', groupRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Cannot ${req.method} ${req.originalUrl}`
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
+  
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'CORS error: Origin not allowed'
+    });
+  }
+  
   res.status(500).json({ 
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });
 });
 
+// Create handler with custom configuration
+const handler = serverless(app, {
+  basePath: '/.netlify/functions/api'
+});
+
 // Export the serverless function
-module.exports.handler = serverless(app); 
+module.exports.handler = async (event, context) => {
+  // Log incoming requests
+  console.log('Request:', {
+    path: event.path,
+    httpMethod: event.httpMethod,
+    headers: event.headers
+  });
+  
+  try {
+    const result = await handler(event, context);
+    return result;
+  } catch (error) {
+    console.error('Serverless error:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred'
+      })
+    };
+  }
+}; 
