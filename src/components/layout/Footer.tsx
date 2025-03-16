@@ -12,7 +12,7 @@ const Footer = () => {
               StudyBuddy
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
-              AI-powered study assistant with CodeGenie integration to help you master programming and other subjects.
+              AI-powered study assistant with CodeDiploMate integration to help you master programming and other subjects.
             </p>
           </div>
           
@@ -26,7 +26,7 @@ const Footer = () => {
               </li>
               <li>
                 <Link to="/code" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  CodeGenie
+                CodeDiploMate👨‍💻
                 </Link>
               </li>
               <li>
@@ -82,7 +82,7 @@ const Footer = () => {
         
         <div className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} StudyBuddy. All rights reserved.
+            © {new Date().getFullYear()} StudyBuddy. Created by Raghava annala.
           </p>
           <div className="mt-4 md:mt-0 flex space-x-6">
             <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

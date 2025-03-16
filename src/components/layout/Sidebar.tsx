@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
@@ -7,30 +6,23 @@ import {
   Brain, 
   ChevronLeft, 
   ChevronRight,
-  GraduationCap,
-  BookOpen,
   Code,
-  Search
+  Timer,
+  Puzzle,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface StudyGroup {
   id: string;
+  privateId: string;
   name: string;
   interest: string;
-  members: number;
+  members: string[];
+  createdAt: Date;
+  createdBy: string;
 }
-
-const studyGroups: StudyGroup[] = [
-  { id: 'prog1', name: 'JS Wizards', interest: 'programming', members: 24 },
-  { id: 'prog2', name: 'Python Masters', interest: 'programming', members: 18 },
-  { id: 'math1', name: 'Math Enthusiasts', interest: 'math', members: 15 },
-  { id: 'sci1', name: 'Physics Geeks', interest: 'science', members: 12 },
-  { id: 'lang1', name: 'Language Lovers', interest: 'language', members: 9 },
-  { id: 'prog3', name: 'Web Developers', interest: 'programming', members: 21 },
-  { id: 'math2', name: 'Stats Group', interest: 'math', members: 8 },
-];
 
 interface InterestGroup {
   id: string;
@@ -41,22 +33,107 @@ interface InterestGroup {
 const interestGroups: InterestGroup[] = [
   { id: 'programming', label: 'Programming', icon: Code },
   { id: 'math', label: 'Mathematics', icon: Brain },
-  { id: 'science', label: 'Science', icon: GraduationCap },
-  { id: 'language', label: 'Languages', icon: BookOpen },
+];
+
+// Define available games
+const codingGames = [
+  {
+    id: 'memory',
+    name: 'Memory Game',
+    icon: Brain,
+    path: '/games#memory',
+    available: true
+  },
+  {
+    id: 'quiz',
+    name: 'Coding Quiz',
+    icon: Code,
+    path: '/games#quiz',
+    available: true
+  },
+  {
+    id: 'challenge',
+    name: 'Code Challenge',
+    icon: Puzzle,
+    path: '/games#challenge',
+    available: true
+  },
+  {
+    id: 'race',
+    name: 'Algorithm Race',
+    icon: Timer,
+    path: '/games#race',
+    available: true
+  },
+  {
+    id: 'tetris',
+    name: 'Code Tetris',
+    icon: Gamepad,
+    path: '/games#tetris',
+    available: true
+  },
+  {
+    id: 'snake',
+    name: 'Code Snake',
+    icon: Zap,
+    path: '/games#snake',
+    available: true
+  }
 ];
 
 const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [activeInterest, setActiveInterest] = useState<string | null>('programming');
+  const [userGroups, setUserGroups] = useState<StudyGroup[]>([]);
   const navigate = useNavigate();
+
+  // Load user's study groups from localStorage or API
+  useEffect(() => {
+    const loadUserGroups = () => {
+      const savedGroups = localStorage.getItem('userStudyGroups');
+      if (savedGroups) {
+        const parsedGroups = JSON.parse(savedGroups);
+        console.log('Loaded groups:', parsedGroups);
+        // Convert date strings back to Date objects
+        const groupsWithDates = parsedGroups.map((group: StudyGroup) => ({
+          ...group,
+          createdAt: new Date(group.createdAt)
+        }));
+        console.log('Groups with dates:', groupsWithDates);
+        setUserGroups(groupsWithDates);
+      }
+    };
+
+    loadUserGroups();
+    // Listen for group updates
+    window.addEventListener('studyGroupsUpdated', loadUserGroups);
+    return () => window.removeEventListener('studyGroupsUpdated', loadUserGroups);
+  }, []);
+
+  useEffect(() => {
+    console.log('Active interest:', activeInterest);
+    console.log('All groups:', userGroups);
+    console.log('Filtered groups:', filteredGroups);
+  }, [activeInterest, userGroups]);
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
   };
 
+  const handleGameClick = (game: typeof codingGames[0]) => {
+    navigate(game.path);
+    // Force tab switch by triggering click on the corresponding tab
+    setTimeout(() => {
+      const tabElement = document.querySelector(`[data-value="${game.id}"]`) as HTMLElement;
+      if (tabElement) {
+        tabElement.click();
+      }
+    }, 100);
+  };
+
   const filteredGroups = activeInterest 
-    ? studyGroups.filter(group => group.interest === activeInterest)
-    : studyGroups;
+    ? userGroups.filter(group => group.interest.toLowerCase() === activeInterest.toLowerCase())
+    : userGroups;
 
   return (
     <div className={cn(
@@ -84,24 +161,57 @@ const Sidebar = () => {
           </div>
 
           {!collapsed && (
-            <div className="grid grid-cols-2 gap-1 mb-3">
-              {interestGroups.map((interest) => (
-                <Button
-                  key={interest.id}
-                  variant={activeInterest === interest.id ? "default" : "outline"}
-                  size="sm"
-                  className="h-8 text-xs justify-start"
-                  onClick={() => setActiveInterest(interest.id)}
-                >
-                  <interest.icon className="h-3 w-3 mr-1" />
-                  {interest.label}
-                </Button>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-1 mb-3">
+                {interestGroups.map((interest) => (
+                  <Button
+                    key={interest.id}
+                    variant={activeInterest === interest.id ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 text-xs justify-start"
+                    onClick={() => setActiveInterest(interest.id)}
+                  >
+                    <interest.icon className="h-3 w-3 mr-1" />
+                    {interest.label}
+                  </Button>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mb-3 text-xs"
+                onClick={() => navigate('/groups/create')}
+              >
+                Create New Group
+              </Button>
+            </>
           )}
 
           <div className="space-y-1">
-            {collapsed ? (
+            {!collapsed ? (
+              filteredGroups.length > 0 ? (
+                filteredGroups.map((group) => (
+                  <Button
+                    key={group.id}
+                    variant="ghost"
+                    className="w-full justify-start text-left h-9"
+                    onClick={() => navigate('/groups')}
+                  >
+                    <div className="truncate flex items-center">
+                      <span className="flex-1">{group.name}</span>
+                      <span className="ml-2 text-xs bg-primary/10 text-primary rounded-full px-1.5">
+                        {group.members.length}
+                      </span>
+                    </div>
+                  </Button>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  No groups yet. Create one!
+                </p>
+              )
+            ) : (
               <Button
                 variant="ghost"
                 size="icon"
@@ -109,33 +219,6 @@ const Sidebar = () => {
                 onClick={() => navigate('/groups')}
               >
                 <Users className="h-5 w-5" />
-              </Button>
-            ) : (
-              filteredGroups.map((group) => (
-                <Button
-                  key={group.id}
-                  variant="ghost"
-                  className="w-full justify-start text-left h-9"
-                  onClick={() => navigate(`/groups/${group.id}`)}
-                >
-                  <div className="truncate">
-                    {group.name}
-                    <span className="ml-2 text-xs bg-primary/10 text-primary rounded-full px-1.5">
-                      {group.members}
-                    </span>
-                  </div>
-                </Button>
-              ))
-            )}
-            
-            {!collapsed && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full mt-2 text-xs"
-                onClick={() => navigate('/groups')}
-              >
-                View All Groups
               </Button>
             )}
           </div>
@@ -154,57 +237,28 @@ const Sidebar = () => {
           </div>
 
           <div className="space-y-1">
-            {!collapsed && (
-              <>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-9"
-                  onClick={() => navigate('/games/challenges')}
-                >
-                  Code Challenges
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-9"
-                  onClick={() => navigate('/games/quizzes')}
-                >
-                  Coding Quizzes
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left h-9"
-                  onClick={() => navigate('/games/algorithm-race')}
-                >
-                  Algorithm Race
-                </Button>
-              </>
-            )}
-            
-            {collapsed && (
+            {codingGames.map((game) => (
               <Button
+                key={game.id}
                 variant="ghost"
-                size="icon"
-                className="w-10 h-10 rounded-full mx-auto block"
-                onClick={() => navigate('/games')}
+                className={cn(
+                  "w-full justify-start text-left h-9",
+                  collapsed && "w-10 h-10 rounded-full mx-auto"
+                )}
+                onClick={() => handleGameClick(game)}
               >
-                <Gamepad className="h-5 w-5" />
+                {collapsed ? (
+                  <game.icon className="h-5 w-5" />
+                ) : (
+                  <div className="flex items-center">
+                    <game.icon className="h-4 w-4 mr-2" />
+                    {game.name}
+                  </div>
+                )}
               </Button>
-            )}
+            ))}
           </div>
         </div>
-
-        {!collapsed && (
-          <div className="border-t border-border pt-4 mt-4">
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => navigate('/search')}
-            >
-              <Search className="h-4 w-4 mr-2" />
-              Search Resources
-            </Button>
-          </div>
-        )}
       </div>
       
       <div className="p-2 border-t border-border flex justify-center">
@@ -222,3 +276,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+

@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import Hero from '@/components/home/Hero';
@@ -7,10 +6,43 @@ import Features from '@/components/home/Features';
 import StudyModules from '@/components/study/StudyModules';
 import CodeEditor from '@/components/study/CodeEditor';
 import FadeIn from '@/components/animations/FadeIn';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { motion } from 'framer-motion';
 
 const Index = () => {
+  const [showFounders, setShowFounders] = useState(false);
+
+  const founders = [
+    { id: 1, name: 'Raghava' },
+    { id: 2, name: 'Rajkumar' },
+    { id: 3, name: 'Deekshit' },
+    { id: 4, name: 'Anji' }
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-zinc-900 relative overflow-hidden">
+      {/* Sparkle Effects */}
+      <div className="absolute inset-0">
+        {[...Array(20)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 bg-yellow-300 rounded-full"
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: [0, 1, 0],
+              scale: [0, 1, 0],
+              x: Math.random() * window.innerWidth,
+              y: Math.random() * window.innerHeight,
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              delay: Math.random() * 2,
+            }}
+          />
+        ))}
+      </div>
+
       <Navbar />
       
       <main className="flex-grow">
@@ -38,6 +70,27 @@ const Index = () => {
       </main>
       
       <Footer />
+
+      <Dialog open={showFounders} onOpenChange={setShowFounders}>
+        <DialogContent className="bg-zinc-900 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="text-2xl text-white mb-4">Our Founders</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {founders.map((founder) => (
+              <motion.div 
+                key={founder.id}
+                className="p-4 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors"
+                whileHover={{ scale: 1.02 }}
+              >
+                <p className="text-lg text-white">
+                  {founder.id}. {founder.name}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

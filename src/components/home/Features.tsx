@@ -1,14 +1,14 @@
-
 import React from 'react';
-import { Code, BookOpen, Search, Clock, Zap, Cpu } from 'lucide-react';
+import { Code, BookOpen, Search, Clock, Zap, Cpu, Users, UserPlus } from 'lucide-react';
 import GlassMorphCard from '../ui/GlassMorphCard';
 import FadeIn from '../animations/FadeIn';
+import { Link } from 'react-router-dom';
 
 const features = [
   {
-    icon: <Code className="h-8 w-8 text-primary" />,
-    title: 'CodeGenie Integration',
-    description: 'Intelligent code completion, debugging, and explanation powered by TinyLlama.',
+    icon: <Code className="h-10 w-10" />,
+    title: 'Smart Code Assistant',
+    description: 'Intelligent code completion, debugging, and explanation powered by Gemini.',
     delay: 0.1
   },
   {
@@ -18,27 +18,29 @@ const features = [
     delay: 0.2
   },
   {
-    icon: <Zap className="h-8 w-8 text-primary" />,
-    title: 'Time & Space Complexity Analysis',
-    description: 'Understand the efficiency of your code with detailed complexity breakdowns.',
+    icon: <Users className="h-8 w-8 text-primary" />,
+    title: 'Study Groups',
+    description: 'Join or create study groups to learn together and share resources.',
+    link: '/groups',
     delay: 0.3
+  },
+  {
+    icon: <UserPlus className="h-8 w-8 text-primary" />,
+    title: 'Real-time Collaboration',
+    description: 'Collaborate with peers in real-time using our interactive study rooms.',
+    link: '/collaborate',
+    delay: 0.4
   },
   {
     icon: <Search className="h-8 w-8 text-primary" />,
     title: 'Smart Search',
     description: 'Find exactly what you need with our AI-powered semantic search functionality.',
-    delay: 0.4
-  },
-  {
-    icon: <Clock className="h-8 w-8 text-primary" />,
-    title: 'Offline Mode',
-    description: 'Continue studying without internet using locally cached data and models.',
     delay: 0.5
   },
   {
-    icon: <Cpu className="h-8 w-8 text-primary" />,
-    title: 'Local Processing',
-    description: 'All AI processing happens on your device, ensuring privacy and fast responses.',
+    icon: <Zap className="h-8 w-8 text-primary" />,
+    title: 'Time & Space Complexity Analysis',
+    description: 'Understand the efficiency of your code with detailed complexity breakdowns.',
     delay: 0.6
   }
 ];
@@ -59,15 +61,29 @@ const Features = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => (
             <FadeIn key={index} delay={feature.delay} direction="up">
-              <GlassMorphCard className="h-full" hoverEffect>
-                <div className="flex flex-col h-full">
-                  <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
-                    {feature.icon}
+              {feature.link ? (
+                <Link to={feature.link} className="block h-full">
+                  <GlassMorphCard className="h-full" hoverEffect>
+                    <div className="flex flex-col h-full">
+                      <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
+                        {feature.icon}
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">{feature.title}</h3>
+                      <p className="text-muted-foreground text-sm flex-grow">{feature.description}</p>
+                    </div>
+                  </GlassMorphCard>
+                </Link>
+              ) : (
+                <GlassMorphCard className="h-full" hoverEffect>
+                  <div className="flex flex-col h-full">
+                    <div className="rounded-full bg-primary/10 w-12 h-12 flex items-center justify-center mb-4">
+                      {feature.icon}
+                    </div>
+                    <h3 className="text-lg font-medium mb-2">{feature.title}</h3>
+                    <p className="text-muted-foreground text-sm flex-grow">{feature.description}</p>
                   </div>
-                  <h3 className="text-lg font-medium mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm flex-grow">{feature.description}</p>
-                </div>
-              </GlassMorphCard>
+                </GlassMorphCard>
+              )}
             </FadeIn>
           ))}
         </div>

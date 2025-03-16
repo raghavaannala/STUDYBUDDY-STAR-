@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -6,6 +5,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StudyGroupDialog } from '@/components/StudyGroupDialog';
 import { 
   Users, 
   Search, 
@@ -103,6 +103,7 @@ const interestGroups = [
 const StudyGroups = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeInterest, setActiveInterest] = useState<string>('all');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   
   const filteredGroups = studyGroups
     .filter(group => 
@@ -125,7 +126,7 @@ const StudyGroups = () => {
               <h1 className="text-3xl font-bold mb-2">Study Groups</h1>
               <p className="text-muted-foreground">Connect with others who share your interests</p>
             </div>
-            <Button className="mt-4 md:mt-0">
+            <Button className="mt-4 md:mt-0" onClick={() => setShowCreateDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Create New Group
             </Button>
@@ -210,7 +211,7 @@ const StudyGroups = () => {
               <p className="text-muted-foreground mb-4">
                 Try adjusting your search query or create a new group.
               </p>
-              <Button>
+              <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create New Group
               </Button>
@@ -218,6 +219,11 @@ const StudyGroups = () => {
           )}
         </div>
       </main>
+      
+      <StudyGroupDialog 
+        open={showCreateDialog} 
+        onOpenChange={setShowCreateDialog}
+      />
       
       <Footer />
     </div>

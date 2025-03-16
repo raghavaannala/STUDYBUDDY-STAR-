@@ -1,0 +1,931 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* More intense Vibranium-inspired color scheme */
+    --background: 276 35% 12%; /* More purple base */
+    --foreground: 0 0% 98%;
+    --card: 262 30% 15%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 25% 15%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 262 95% 70%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 40% 20%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 30% 20%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 262 95% 75%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 262 85% 60%;
+    --input: 240 25% 30%;
+    --ring: 262 90% 65%;
+    --radius: 0.5rem;
+    --vibranium-primary: 276 90% 50%; /* Rich purple */
+    --vibranium-glow: 276 100% 65%; /* Bright purple glow */
+    --vibranium-metal: 276 30% 20%; /* Dark purple metallic */
+    --vibranium-energy: 276 100% 70%; /* Pure purple energy */
+  }
+
+  /* Add a subtle gradient overlay to the body */
+  body {
+    @apply bg-background text-foreground;
+    background: 
+      /* Hexagonal grid */
+      linear-gradient(
+        to right,
+        hsl(276 40% 15% / 0.8) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        hsl(276 40% 15% / 0.8) 1px,
+        transparent 1px
+      ),
+      /* Glowing orbs */
+      radial-gradient(
+        circle at 20% 20%,
+        hsl(276 90% 50% / 0.4) 0%,
+        transparent 35%
+      ),
+      radial-gradient(
+        circle at 80% 80%,
+        hsl(276 90% 50% / 0.4) 0%,
+        transparent 35%
+      ),
+      /* Energy waves */
+      radial-gradient(
+        circle at 50% 50%,
+        hsl(276 90% 50% / 0.2) 0%,
+        transparent 50%
+      ),
+      /* Base gradient */
+      linear-gradient(
+        135deg,
+        hsl(276 40% 12%) 0%,
+        hsl(276 35% 15%) 50%,
+        hsl(276 40% 18%) 100%
+      );
+    background-size: 
+      50px 50px,
+      50px 50px,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%;
+    background-attachment: fixed;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  /* Add animated energy overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      repeating-linear-gradient(
+        45deg,
+        hsl(276 90% 50% / 0.1) 0%,
+        hsl(276 90% 50% / 0.1) 10px,
+        transparent 10px,
+        transparent 20px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        hsl(276 90% 50% / 0.1) 0%,
+        hsl(276 90% 50% / 0.1) 10px,
+        transparent 10px,
+        transparent 20px
+      );
+    animation: energyFlow 15s linear infinite;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  /* Add floating particles */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      radial-gradient(
+        circle at 50% 50%,
+        hsl(276 90% 70%) 0%,
+        transparent 0.5%
+      );
+    background-size: 10px 10px;
+    animation: floatingParticles 20s linear infinite;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* Enhanced animations */
+  @keyframes energyFlow {
+    0% {
+      transform: translate(0, 0);
+    }
+    100% {
+      transform: translate(50px, 50px);
+    }
+  }
+
+  @keyframes floatingParticles {
+    0% {
+      transform: translateY(0) rotate(0deg);
+    }
+    100% {
+      transform: translateY(-100vh) rotate(360deg);
+    }
+  }
+
+  /* Add hexagonal pattern */
+  /* Add metallic sheen to cards */
+  .card {
+    background-image: linear-gradient(
+      135deg,
+      hsl(240 15% 25% / 0.8),
+      hsl(240 15% 20%),
+      hsl(240 15% 18%)
+    );
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(262 83% 58% / 0.2);
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Add shimmer effect for interactive elements */
+.shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    hsl(262 83% 58% / 0.1),
+    hsl(262 83% 58% / 0.2),
+    hsl(262 83% 58% / 0.1)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Enhanced Vibranium Effects */
+@layer components {
+  .vibranium-bg {
+    background: linear-gradient(
+      135deg,
+      hsl(262 90% 65% / 0.1),
+      hsl(240 30% 10%),
+      hsl(262 90% 65% / 0.15)
+    );
+    position: relative;
+    overflow: hidden;
+  }
+
+  .vibranium-bg::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(
+      circle,
+      hsl(262 90% 65% / 0.1) 0%,
+      transparent 50%
+    );
+    animation: rotate 20s linear infinite;
+  }
+
+  .vibranium-card {
+    background: linear-gradient(
+      135deg,
+      hsl(276 40% 25% / 0.9),
+      hsl(276 35% 20%),
+      hsl(276 40% 25% / 0.9)
+    );
+    border: 1px solid hsl(276 90% 65% / 0.4);
+    box-shadow: 
+      0 0 20px hsl(276 90% 65% / 0.1),
+      inset 0 0 20px hsl(276 90% 65% / 0.1);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+  }
+
+  .vibranium-card:hover {
+    border-color: hsl(276 90% 65% / 0.5);
+    box-shadow: 
+      0 0 30px hsl(276 90% 65% / 0.2),
+      inset 0 0 30px hsl(276 90% 65% / 0.2);
+    transform: translateY(-2px);
+  }
+
+  .vibranium-text {
+    background: linear-gradient(
+      90deg, 
+      hsl(276 90% 65%),
+      hsl(276 90% 75%),
+      hsl(276 90% 65%)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  .vibranium-border {
+    position: relative;
+  }
+
+  .vibranium-border::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(
+      90deg,
+      hsl(276 90% 65%),
+      hsl(276 30% 20%),
+      hsl(276 90% 65%)
+    );
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    border-radius: inherit;
+    animation: borderShimmer 3s linear infinite;
+  }
+
+  .vibranium-button {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    background: linear-gradient(
+      135deg,
+      hsl(276 90% 65% / 0.2),
+      hsl(276 30% 20% / 0.3)
+    );
+    border: 1px solid hsl(276 90% 65% / 0.4);
+    box-shadow: 0 0 15px hsl(276 90% 65% / 0.1);
+  }
+
+  .vibranium-button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(
+      circle,
+      hsl(262 90% 65% / 0.4) 0%,
+      transparent 70%
+    );
+    transform: translate(-50%, -50%) scale(0);
+    transition: transform 0.5s ease-out;
+    pointer-events: none;
+  }
+
+  .vibranium-button:active::before {
+    transform: translate(-50%, -50%) scale(1);
+    transition: transform 0.2s ease-out;
+  }
+
+  .vibranium-button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(262 90% 65% / 0.2),
+      transparent
+    );
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .vibranium-button:hover::after {
+    transform: translateX(100%);
+  }
+
+  .vibranium-button:active {
+    transform: scale(0.98);
+    box-shadow: 
+      0 0 30px hsl(262 90% 65% / 0.3),
+      inset 0 0 20px hsl(262 90% 65% / 0.4);
+  }
+
+  /* Ripple animation */
+  @keyframes ripple {
+    to {
+      transform: translate(-50%, -50%) scale(3);
+      opacity: 0;
+    }
+  }
+
+  /* Energy pulse animation */
+  @keyframes energyPulse {
+    0% {
+      box-shadow: 0 0 15px hsl(262 90% 65% / 0.1);
+    }
+    50% {
+      box-shadow: 
+        0 0 30px hsl(262 90% 65% / 0.3),
+        inset 0 0 20px hsl(262 90% 65% / 0.2);
+    }
+    100% {
+      box-shadow: 0 0 15px hsl(262 90% 65% / 0.1);
+    }
+  }
+
+  .sparkle-background {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sparkle-background::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+      radial-gradient(circle at 20% 20%, hsl(276 95% 70% / 0.3) 0%, transparent 30%),
+      radial-gradient(circle at 80% 80%, hsl(276 95% 70% / 0.3) 0%, transparent 30%),
+      radial-gradient(circle at 50% 50%, hsl(276 95% 70% / 0.1) 0%, transparent 50%);
+    animation: shiftBackground 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .sparkle-background::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      radial-gradient(
+        circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+        hsl(276 95% 70% / 0.2) 0%,
+        transparent 20%
+      );
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .sparkle-background:hover::after {
+    opacity: 1;
+  }
+
+  /* Floating sparkles */
+  .sparkle {
+    position: fixed;
+    width: 3px;
+    height: 3px;
+    background: hsl(276 95% 70%);
+    border-radius: 50%;
+    animation: float-sparkle var(--float-duration, 15s) linear infinite;
+    opacity: 0;
+    z-index: -1;
+  }
+
+  /* Energy lines */
+  .energy-line {
+    position: fixed;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(276 95% 70% / 0.5),
+      transparent
+    );
+    animation: energy-flow 3s linear infinite;
+    opacity: 0.3;
+    z-index: -1;
+  }
+
+  /* Pulse rings */
+  .pulse-ring {
+    position: fixed;
+    border-radius: 50%;
+    border: 2px solid hsl(276 95% 70% / 0.3);
+    animation: pulse-out 4s ease-out infinite;
+    opacity: 0;
+    z-index: -1;
+  }
+}
+
+/* Animations */
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes borderShimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Apply vibranium background to body */
+body {
+  @apply vibranium-bg min-h-screen text-foreground sparkle-background;
+  background: 
+    /* Nano-tech pattern */
+    repeating-conic-gradient(
+      from 0deg,
+      hsl(var(--vibranium-metal)) 0deg 30deg,
+      hsl(var(--vibranium-primary) / 0.2) 30deg 60deg
+    ),
+    /* Energy grid */
+    linear-gradient(
+      45deg,
+      hsl(var(--vibranium-glow) / 0.1) 25%,
+      transparent 25%,
+      transparent 75%,
+      hsl(var(--vibranium-glow) / 0.1) 75%
+    ),
+    linear-gradient(
+      -45deg,
+      hsl(var(--vibranium-glow) / 0.1) 25%,
+      transparent 25%,
+      transparent 75%,
+      hsl(var(--vibranium-glow) / 0.1) 75%
+    ),
+    /* Kinetic energy absorption */
+    radial-gradient(
+      circle at 50% 50%,
+      hsl(var(--vibranium-energy) / 0.4) 0%,
+      transparent 50%
+    ),
+    /* Metallic base */
+    linear-gradient(
+      135deg,
+      hsl(var(--vibranium-metal)) 0%,
+      hsl(var(--vibranium-primary) / 0.3) 50%,
+      hsl(var(--vibranium-metal)) 100%
+    );
+  background-size: 
+    100px 100px,
+    60px 60px,
+    60px 60px,
+    100% 100%,
+    100% 100%;
+  background-attachment: fixed;
+  position: relative;
+  animation: absorbEnergy 8s linear infinite;
+}
+
+/* Kinetic energy absorption lines */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: 
+    repeating-linear-gradient(
+      90deg,
+      transparent 0%,
+      transparent 45%,
+      hsl(var(--vibranium-energy) / 0.5) 48%,
+      hsl(var(--vibranium-energy) / 0.5) 52%,
+      transparent 55%,
+      transparent 100%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0%,
+      transparent 45%,
+      hsl(var(--vibranium-energy) / 0.5) 48%,
+      hsl(var(--vibranium-energy) / 0.5) 52%,
+      transparent 55%,
+      transparent 100%
+    );
+  background-size: 100px 100px;
+  animation: energyFlow 4s linear infinite;
+  opacity: 0.3;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* Nano-tech reassembly effect */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(
+      circle at center,
+      transparent 0%,
+      hsl(var(--vibranium-energy) / 0.4) 25%,
+      transparent 50%
+    );
+  background-size: 200% 200%;
+  animation: nanoReassembly 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Vibranium animations */
+@keyframes absorbEnergy {
+  0%, 100% {
+    background-position: 
+      0 0,
+      0 0,
+      0 0,
+      center,
+      0 0;
+  }
+  50% {
+    background-position: 
+      100px 100px,
+      30px 30px,
+      -30px -30px,
+      center,
+      0 0;
+  }
+}
+
+@keyframes energyFlow {
+  0% {
+    transform: translateX(0) translateY(0);
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateX(50px) translateY(50px);
+    opacity: 0.3;
+  }
+}
+
+@keyframes nanoReassembly {
+  0%, 100% {
+    background-position: center;
+    opacity: 0.2;
+  }
+  50% {
+    background-position: 30% 70%;
+    opacity: 0.5;
+  }
+}
+
+/* Enhanced Vibranium Button */
+.vibranium-button {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--vibranium-metal)) 0%,
+    hsl(var(--vibranium-primary) / 0.6) 50%,
+    hsl(var(--vibranium-metal)) 100%
+  );
+  border: 2px solid hsl(var(--vibranium-energy) / 0.8);
+  box-shadow: 
+    0 0 30px hsl(var(--vibranium-glow) / 0.4),
+    inset 0 0 20px hsl(var(--vibranium-glow) / 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.vibranium-button::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  background: radial-gradient(
+    circle at var(--x, 50%) var(--y, 50%),
+    hsl(var(--vibranium-energy)) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.vibranium-button:hover::before {
+  opacity: 0.5;
+}
+
+.vibranium-button:active::before {
+  opacity: 0.8;
+}
+
+/* Enhanced Vibranium Card */
+.vibranium-card {
+  background: 
+    linear-gradient(
+      135deg,
+      hsl(var(--vibranium-metal)) 0%,
+      hsl(var(--vibranium-primary) / 0.4) 50%,
+      hsl(var(--vibranium-metal)) 100%
+    );
+  border: 2px solid hsl(var(--vibranium-energy) / 0.6);
+  box-shadow: 
+    0 0 40px hsl(var(--vibranium-glow) / 0.3),
+    inset 0 0 30px hsl(var(--vibranium-glow) / 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.vibranium-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      transparent 0%,
+      transparent 48%,
+      hsl(var(--vibranium-energy) / 0.3) 50%,
+      transparent 52%,
+      transparent 100%
+    );
+  background-size: 10px 10px;
+  animation: energyPulse 3s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes energyPulse {
+  0% {
+    opacity: 0.2;
+    transform: translateX(-100%) translateY(-100%);
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0.2;
+    transform: translateX(100%) translateY(100%);
+  }
+}
+
+/* Apply vibranium effects to cards */
+.card {
+  @apply vibranium-card;
+}
+
+/* Apply vibranium text effect to headings */
+h1, h2, h3 {
+  @apply vibranium-text;
+}
+
+/* Apply vibranium border to buttons */
+.btn, button {
+  @apply vibranium-border;
+}
+
+/* Apply vibranium button effects to all buttons */
+button,
+.btn,
+.button,
+[type="button"],
+[type="submit"],
+[type="reset"] {
+  @apply vibranium-button vibranium-border relative overflow-hidden transition-all duration-300;
+  background: linear-gradient(
+    135deg,
+    hsl(262 90% 65% / 0.1),
+    hsl(240 30% 20% / 0.2)
+  );
+  border: 1px solid hsl(262 90% 65% / 0.3);
+  box-shadow: 0 0 15px hsl(262 90% 65% / 0.1);
+}
+
+/* Add hover and active states */
+button:hover,
+.btn:hover,
+.button:hover,
+[type="button"]:hover,
+[type="submit"]:hover,
+[type="reset"]:hover {
+  border-color: hsl(262 90% 65% / 0.5);
+  box-shadow: 
+    0 0 20px hsl(262 90% 65% / 0.2),
+    inset 0 0 15px hsl(262 90% 65% / 0.2);
+  transform: translateY(-1px);
+}
+
+button:active,
+.btn:active,
+.button:active,
+[type="button"]:active,
+[type="submit"]:active,
+[type="reset"]:active {
+  transform: scale(0.98);
+  box-shadow: 
+    0 0 30px hsl(262 90% 65% / 0.3),
+    inset 0 0 20px hsl(262 90% 65% / 0.4);
+}
+
+/* Special styles for primary buttons */
+button[type="submit"],
+.btn-primary,
+.button-primary {
+  background: linear-gradient(
+    135deg,
+    hsl(262 90% 65% / 0.2),
+    hsl(240 30% 20% / 0.3)
+  );
+  border-color: hsl(262 90% 65% / 0.4);
+  box-shadow: 
+    0 0 20px hsl(262 90% 65% / 0.15),
+    inset 0 0 15px hsl(262 90% 65% / 0.15);
+}
+
+/* Special styles for secondary buttons */
+.btn-secondary,
+.button-secondary {
+  background: linear-gradient(
+    135deg,
+    hsl(240 30% 20% / 0.2),
+    hsl(262 90% 65% / 0.1)
+  );
+  border-color: hsl(262 90% 65% / 0.25);
+}
+
+/* Add ripple effect to all buttons */
+button::before,
+.btn::before,
+.button::before,
+[type="button"]::before,
+[type="submit"]::before,
+[type="reset"]::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(
+    circle,
+    hsl(262 90% 65% / 0.4) 0%,
+    transparent 70%
+  );
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.5s ease-out;
+  pointer-events: none;
+}
+
+/* Add shimmer effect to all buttons */
+button::after,
+.btn::after,
+.button::after,
+[type="button"]::after,
+[type="submit"]::after,
+[type="reset"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(262 90% 65% / 0.2),
+    transparent
+  );
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+/* Hover and active states for effects */
+button:hover::after,
+.btn:hover::after,
+.button:hover::after,
+[type="button"]:hover::after,
+[type="submit"]:hover::after,
+[type="reset"]:hover::after {
+  transform: translateX(100%);
+}
+
+button:active::before,
+.btn:active::before,
+.button:active::before,
+[type="button"]:active::before,
+[type="submit"]:active::before,
+[type="reset"]:active::before {
+  transform: translate(-50%, -50%) scale(1);
+  transition: transform 0.2s ease-out;
+}
+
+/* Add focus styles */
+button:focus,
+.btn:focus,
+.button:focus,
+[type="button"]:focus,
+[type="submit"]:focus,
+[type="reset"]:focus {
+  outline: none;
+  box-shadow: 
+    0 0 0 2px hsl(262 90% 65% / 0.3),
+    0 0 15px hsl(262 90% 65% / 0.2),
+    inset 0 0 15px hsl(262 90% 65% / 0.2);
+}
+
+@keyframes shiftBackground {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes float-sparkle {
+  0% {
+    transform: translate(0, 100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, -100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes energy-flow {
+  0% {
+    transform: translateX(-100%) skewX(-45deg);
+  }
+  100% {
+    transform: translateX(100%) skewX(-45deg);
+  }
+}
+
+@keyframes pulse-out {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(4);
+    opacity: 0;
+  }
+}
+
+/* Update the body styles */
+body {
+  @apply bg-background text-foreground sparkle-background;
+  min-height: 100vh;
+}
+
+/* Add this script to create dynamic sparkles */
+@layer utilities {
+  .create-sparkles {
+    position: relative;
+  }
+
+  .create-sparkles::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: 
+      radial-gradient(
+        circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+        hsl(276 95% 70% / 0.4) 0%,
+        transparent 100%
+      );
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .create-sparkles:hover::before {
+    opacity: 1;
+  }
+} 
