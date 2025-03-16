@@ -1,11 +1,12 @@
 [build]
-  command = "npm install"
-  functions = "functions"
+  command = "npm run build"
+  functions = "functions-build"
   publish = "public"
 
 [functions]
   external_node_modules = ["express"]
   node_bundler = "esbuild"
+  directory = "functions"
 
 [[redirects]]
   from = "/api/*"
