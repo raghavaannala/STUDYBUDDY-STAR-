@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card } from './ui/card';
 import { useToast } from './ui/use-toast';
-import { generateCode, optimizeCode, explainCode, resetChatSession } from '../services/codeDiploMate';
+import { generateCode, optimizeCode, explainCode, resetChat } from '@/services/codeGenerator';
 import { Loader2, Code, Zap, HelpCircle, RefreshCw } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -30,19 +30,22 @@ export function CodeGenie() {
     if (!prompt.trim()) {
       toast({
         title: "Error",
-        description: "Please enter a prompt",
+        description: "Please enter a coding prompt",
         variant: "destructive",
       });
       return;
     }
 
     setIsLoading(true);
+    setOutput(null);
+    
     try {
-      const result = await generateCode(prompt);
+      const response = await generateCode(prompt);
+      
       setOutput({
-        code: result.code,
-        explanation: '',
-        complexity: result.complexity,
+        code: response.code,
+        explanation: "",
+        complexity: response.complexity
       });
       
       toast({
@@ -53,7 +56,7 @@ export function CodeGenie() {
       console.error('Error generating code:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate code",
+        description: "Failed to generate code. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -126,7 +129,7 @@ export function CodeGenie() {
 
   const handleResetSession = async () => {
     try {
-      await resetChatSession();
+      await resetChat();
       toast({
         title: "Success",
         description: "Chat session reset successfully!",

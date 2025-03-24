@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Users, Gamepad, BookOpen } from 'lucide-react';
+import { ArrowRight, Users, Gamepad, BookOpen, FileText } from 'lucide-react';
 import FadeIn from '../animations/FadeIn';
 import GlassMorphCard from '../ui/GlassMorphCard';
 import { useNavigate } from 'react-router-dom';
@@ -206,10 +206,11 @@ const Hero = () => {
   const [showFounders, setShowFounders] = useState(false);
   
   const founders = [
-    { name: "Raghava", designation: "Full Stack & UI UX" },
-    { name: "Deekshith", designation: "Full Stack & Backend" },
-    { name: "Rajkumar", designation: "CSS Stylist" },
-    { name: "Anji", designation: "Data Analyst" }
+    { name: "Raghava_annala", designation: "Full Stack Developer & UI UX" },
+    { name: "Deekshith_nanaveni", designation: "Full Stack Developer & Backend" },
+    { name: "Vikas_gaddoju", designation: "Chief Evangelist" },
+    { name: "Rajkumar_kokku", designation: "CSS Stylist & Canva Editor" },
+    { name: "Anji_sapavat", designation: "Data Analyst & DB Expert" }
   ];
   
   useEffect(() => {
@@ -380,6 +381,19 @@ const Hero = () => {
             
             <Button 
               size="lg" 
+              className="backdrop-blur-sm bg-gradient-to-br from-purple-600/90 to-indigo-700/90 hover:from-purple-500 hover:to-indigo-600 text-white border border-purple-400/30 shadow-[0_4px_20px_rgba(147,51,234,0.2)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.4)] transform hover:translate-y-[-2px] transition-all duration-300"
+              onClick={() => navigate('/resume')}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md"></div>
+              <div className="relative z-10 flex items-center">
+                <FileText className="mr-2 h-4 w-4" />
+                <span>BuddyResume Builder</span>
+                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Button>
+            
+            <Button 
+              size="lg" 
               variant="outline" 
               className="backdrop-blur-sm bg-slate-800/40 border border-purple-500/30 text-purple-200 hover:bg-purple-500/20 hover:text-purple-100 shadow-[0_4px_20px_rgba(147,51,234,0.1)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.2)] transform hover:translate-y-[-2px] transition-all duration-300"
               onClick={() => navigate('/study')}
@@ -406,7 +420,8 @@ const Hero = () => {
             
             <Button 
               size="lg" 
-              className="backdrop-blur-sm bg-gradient-to-br from-purple-600/90 to-indigo-700/90 hover:from-purple-500 hover:to-indigo-600 text-white border border-purple-400/30 shadow-[0_4px_20px_rgba(147,51,234,0.2)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.4)] transform hover:translate-y-[-2px] transition-all duration-300"
+              variant="outline"
+              className="backdrop-blur-sm bg-slate-800/40 border border-purple-500/30 text-purple-200 hover:bg-purple-500/20 hover:text-purple-100 shadow-[0_4px_20px_rgba(147,51,234,0.1)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.2)] transform hover:translate-y-[-2px] transition-all duration-300"
               onClick={() => navigate('/games')}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md"></div>
@@ -441,6 +456,10 @@ const Hero = () => {
                     <li className="flex items-start">
                       <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
                       <span><strong className="text-purple-200">CodeDiploMate:</strong> AI-driven code analysis and optimization</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
+                      <span><strong className="text-purple-200">BuddyResume:</strong> AI-powered resume builder with ATS optimization</span>
                     </li>
                     <li className="flex items-start">
                       <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>

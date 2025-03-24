@@ -9,9 +9,10 @@ export default function HomePage() {
 
   const founders = [
     { id: 1, name: 'Raghava' },
-    { id: 2, name: 'Rajkumar' },
-    { id: 3, name: 'Deekshit' },
-    { id: 4, name: 'Anji' }
+    { id: 2, name: 'Deekshit' },
+    { id: 3, name: 'Vikas' },
+    { id: 4, name: 'Rajkumar' },
+    { id: 5, name: 'Anji' }
   ];
 
   return (

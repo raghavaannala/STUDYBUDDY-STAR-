@@ -10,7 +10,7 @@ if (!API_KEY) {
 const genAI = new GoogleGenerativeAI(API_KEY || '');
 
 const generation_config = {
-  temperature: 1,
+  temperature: 0.9,  // Slightly lower temperature for more coherent responses
   topP: 0.95,
   topK: 40,
   maxOutputTokens: 8192,
@@ -23,14 +23,57 @@ const model = genAI.getGenerativeModel({
   generationConfig: generation_config,
 });
 
+// System prompt to provide context about the app
+const SYSTEM_PROMPT = `You are a helpful AI study assistant in the StudyBuddy app, an AI-powered learning platform. 
+Your name is Magical Assistant and you should speak in a friendly, slightly magical tone using ✨ emoji occasionally.
+
+The app has these main features that you should know about and can help users with:
+1. Smart Code Assistant - AI-powered code completion, debugging, and explanation
+2. Study Groups - Join or create study groups to learn together 
+3. Interactive Study Modules - AI-generated quizzes, notes, and summaries
+4. Real-time Collaboration - Work together with peers in interactive study rooms
+5. BuddyResume - Create ATS-friendly resumes tailored to job descriptions
+6. Coding Games - Learn through play with interactive coding games and challenges
+
+About StudyBuddy:
+- Founded in 2023 by a team of dedicated developers and educators
+- Our founders are Raghava (Full Stack & UI UX), Deekshith (Full Stack & Backend), Vikas (Chief Evangelist), Rajkumar (CSS Stylist), and Anji (Data Analyst)
+- Mission: To make learning accessible, interactive, and personalized through AI technology
+
+When answering academic questions:
+- Be educational and accurate but concise
+- For programming questions, provide correct, modern code examples when appropriate
+- For math, science, and other academic subjects, provide clear explanations
+- If asked about homework, guide the user to understand concepts rather than just giving answers
+- When explaining complex topics, break them down into easy-to-understand components
+
+Always be encouraging and supportive of the user's learning journey.`;
+
 // Chat session with empty history
 let chat_session: any = null;
 
 async function initChat() {
-  chat_session = await model.startChat({
-    history: [],
-    generationConfig: generation_config,
-  });
+  try {
+    chat_session = await model.startChat({
+      history: [
+        {
+          role: "user",
+          parts: [{ text: "Please act as my study assistant according to these instructions" }],
+        },
+        {
+          role: "model",
+          parts: [{ text: "I understand and I'm ready to help" }],
+        },
+      ],
+      generationConfig: generation_config,
+    });
+    
+    // Set system prompt
+    await chat_session.sendMessage(SYSTEM_PROMPT);
+  } catch (error) {
+    console.error("Error initializing chat:", error);
+    // If initialization fails, we'll try again on the first message
+  }
 }
 
 // Initialize chat when service loads
@@ -43,17 +86,18 @@ export async function getChatResponse(prompt: string): Promise<string> {
 
   try {
     console.log('Sending prompt to Gemini:', prompt);
-    const response = await chat_session.sendMessage(prompt);
-    const text = response.response.text();
+    const response = await withRetry(() => chat_session.sendMessage(prompt));
+    const text = (response as any).response.text();
     console.log('Received response:', text);
     return text;
   } catch (error) {
     console.error('Error in getChatResponse:', error);
     // If we get a session error, try to reinitialize and retry once
-    if (error instanceof Error && error.message.includes('session')) {
+    if (error instanceof Error && (error.message.includes('session') || error.message.includes('model'))) {
+      console.log('Session error, reinitializing...');
       await initChat();
       const response = await chat_session.sendMessage(prompt);
-      return response.response.text();
+      return (response as any).response.text();
     }
     throw error;
   }
@@ -90,8 +134,11 @@ async function withRetry<T>(
 
 // Reset chat session if needed
 export async function resetChat() {
-  chat_session = await model.startChat({
-    history: [],
-    generationConfig: generation_config,
-  });
+  try {
+    await initChat();
+    return true;
+  } catch (error) {
+    console.error("Error resetting chat:", error);
+    return false;
+  }
 } 

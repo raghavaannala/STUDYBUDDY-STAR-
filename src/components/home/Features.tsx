@@ -1,5 +1,5 @@
 import React from 'react';
-import { Code, BookOpen, Search, Clock, Zap, Cpu, Users, UserPlus } from 'lucide-react';
+import { Code, BookOpen, Users, UserPlus, FileText, Gamepad } from 'lucide-react';
 import GlassMorphCard from '../ui/GlassMorphCard';
 import FadeIn from '../animations/FadeIn';
 import { Link } from 'react-router-dom';
@@ -32,15 +32,17 @@ const features = [
     delay: 0.4
   },
   {
-    icon: <Search className="h-8 w-8 text-primary" />,
-    title: 'Smart Search',
-    description: 'Find exactly what you need with our AI-powered semantic search functionality.',
+    icon: <FileText className="h-8 w-8 text-primary" />,
+    title: 'BuddyResume',
+    description: 'Create ATS-friendly resumes tailored to job descriptions with our AI-powered resume builder.',
+    link: '/resume',
     delay: 0.5
   },
   {
-    icon: <Zap className="h-8 w-8 text-primary" />,
-    title: 'Time & Space Complexity Analysis',
-    description: 'Understand the efficiency of your code with detailed complexity breakdowns.',
+    icon: <Gamepad className="h-8 w-8 text-primary" />,
+    title: 'Coding Games',
+    description: 'Learn through play with our interactive coding games and challenges designed to build your skills.',
+    link: '/games',
     delay: 0.6
   }
 ];

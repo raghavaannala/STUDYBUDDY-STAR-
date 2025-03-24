@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, BookOpen, Code, Search, Sparkles, Users, User, Settings, LogOut, Home, MessageSquare, Gamepad } from 'lucide-react';
+import { Menu, X, BookOpen, Code, Search, Sparkles, Users, User, Settings, LogOut, Home, MessageSquare, Gamepad, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SignInButton } from "@/components/auth/SignInButton";
@@ -56,8 +56,9 @@ export default function Navbar() {
   const founders = [
     { id: 1, name: 'Raghava' },
     { id: 2, name: 'Deekshith' },
-    { id: 3, name: 'Rajkumar' },
-    { id: 4, name: 'Anji' }
+    { id: 3, name: 'Vikas' },
+    { id: 4, name: 'Rajkumar' },
+    { id: 5, name: 'Anji' }
   ];
 
   // Listen for auth state changes
@@ -177,6 +178,11 @@ export default function Navbar() {
       name: "Games",
       path: "/games",
       icon: <Gamepad className="h-4 w-4 mr-2" />
+    },
+    {
+      name: "BuddyResume",
+      path: "/resume",
+      icon: <FileText className="h-4 w-4 mr-2" />
     }
   ];
 

@@ -6,16 +6,101 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Card } from "./ui/card";
 import { getChatResponse } from '../services/gemini';
 import { useToast } from "./ui/use-toast";
+import { useNavigate } from 'react-router-dom';
 
+// Message interface
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
+// Position interface for dragging
 interface Position {
   x: number;
   y: number;
 }
+
+// Founder information interface
+interface FounderInfo {
+  name: string;
+  role: string;
+  background: string;
+}
+
+// Founders data interface
+interface FoundersData {
+  founders: FounderInfo[];
+  founded: string;
+  mission: string;
+}
+
+// App features and navigation quick links
+const appFeatures = {
+  "code": {
+    description: "AI-powered code completion, debugging, and explanation",
+    pages: ["/code-assistant", "/code-genie", "/code-diplomate"]
+  },
+  "study": {
+    description: "Join or create study groups to learn together", 
+    pages: ["/study", "/study-groups"]
+  },
+  "quiz": {
+    description: "Interactive learning, AI-generated quizzes and summaries",
+    pages: ["/quiz"]
+  },
+  "resume": {
+    description: "Create ATS-friendly resumes tailored to job descriptions",
+    pages: ["/buddy-resume"]
+  },
+  "games": {
+    description: "Learn through play with interactive coding games and challenges",
+    pages: ["/games"]
+  },
+  "collaborate": {
+    description: "Work together with peers in interactive study rooms",
+    pages: ["/collaborate"]
+  }
+};
+
+// Default founders data
+const defaultFoundersData: FoundersData = {
+  founders: [
+    {
+      name: "Raghava",
+      role: "Full Stack & UI UX",
+      background: "Expert in creating beautiful and functional user interfaces"
+    },
+    {
+      name: "Deekshith",
+      role: "Full Stack & Backend",
+      background: "Specialist in robust backend architecture and database management"
+    },
+    {
+      name: "Vikas",
+      role: "Chief Evangelist",
+      background: "Technology advocate and community builder focused on promoting StudyBuddy's mission"
+    },
+    {
+      name: "Rajkumar",
+      role: "CSS Stylist",
+      background: "Creating pixel-perfect designs and responsive layouts"
+    },
+    {
+      name: "Anji",
+      role: "Data Analyst",
+      background: "Data science expert focusing on analytics and insights"
+    }
+  ],
+  founded: "2023",
+  mission: "To make learning accessible, interactive, and personalized through AI technology"
+};
+
+// Common academic subjects for quick responses
+const academicSubjects = [
+  "programming", "mathematics", "physics", "chemistry", "biology",
+  "history", "english", "literature", "computer science", "data structures", 
+  "algorithms", "web development", "machine learning"
+];
 
 export function AIBuddyAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,10 +111,36 @@ export function AIBuddyAssistant() {
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [foundersInfo, setFoundersInfo] = useState<FoundersData>(defaultFoundersData);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Load founders info when component mounts
+  useEffect(() => {
+    async function loadFoundersInfo() {
+      try {
+        // Instead of importing, we simulate loading the founders info
+        // In a real app, this would be an API call to your backend
+        console.log("Loading founders info from service...");
+        
+        // We already have the founders data in defaultFoundersData,
+        // so we'll just simulate a successful load after a short delay
+        setTimeout(() => {
+          setFoundersInfo(defaultFoundersData);
+        }, 300);
+      } catch (error) {
+        console.error("Failed to load founders info:", error);
+        // Keep using the default foundersInfo if fetch fails
+      }
+    }
+    
+    loadFoundersInfo();
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -115,9 +226,16 @@ export function AIBuddyAssistant() {
       setMessages([
         { 
           role: 'assistant', 
-          content: '✨ Hello there! I\'m your magical study assistant. How can I help you today with your studies, coding questions, or any other academic magic you need? ✨' 
+          content: '✨ Hello there! I\'m your magical study assistant. I can help you navigate the app, explain features, or answer academic questions! Try asking about "code help", "study groups", "resume builder" or any academic subject. ✨' 
         }
       ]);
+      
+      // Show the guide for new sessions
+      const hasSeenGuide = localStorage.getItem('hasSeenAssistantGuide');
+      if (!hasSeenGuide) {
+        setShowGuide(true);
+        localStorage.setItem('hasSeenAssistantGuide', 'true');
+      }
     }
   }, [isOpen, messages.length]);
 
@@ -128,10 +246,113 @@ export function AIBuddyAssistant() {
     const userMessage = input.trim();
     setInput('');
     setIsLoading(true);
+    setShowSuggestions(false);
+    setShowGuide(false); // Hide guide when user sends a message
+
+    // Check if user is asking for help with the assistant
+    const lowerCaseMessage = userMessage.toLowerCase();
+    if (lowerCaseMessage.includes('help') && 
+        (lowerCaseMessage.includes('assistant') || lowerCaseMessage.includes('how to use') || 
+         lowerCaseMessage.includes('what can you do') || lowerCaseMessage.includes('guide'))) {
+      setShowGuide(true);
+      setMessages(prev => [
+        ...prev, 
+        { role: 'user', content: userMessage },
+        { role: 'assistant', content: '✨ Here\'s a guide to help you use me effectively! Check out the overlay with tips. ✨' }
+      ]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Check if user is asking about founders
+    if (lowerCaseMessage.includes('founder') || 
+        lowerCaseMessage.includes('who made') || 
+        lowerCaseMessage.includes('who created') || 
+        lowerCaseMessage.includes('who built') ||
+        lowerCaseMessage.includes('who developed') ||
+        lowerCaseMessage.includes('company info')) {
+      
+      // Check for specific founder questions
+      let specificFounder = null;
+      for (const founder of foundersInfo.founders) {
+        if (lowerCaseMessage.includes(founder.name.toLowerCase())) {
+          specificFounder = founder;
+          break;
+        }
+      }
+      
+      if (specificFounder) {
+        // Answer about specific founder
+        const founderResponse = `✨ ${specificFounder.name} is our ${specificFounder.role}. ${specificFounder.background}. They are one of the key members of our founding team at StudyBuddy! ✨`;
+        
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: founderResponse }
+        ]);
+      } else {
+        // Answer about all founders
+        let foundersResponse = `✨ StudyBuddy was founded in ${foundersInfo.founded} with the mission: "${foundersInfo.mission}".\n\nOur founders are:\n`;
+        
+        // Dynamically create the list of founders
+        foundersInfo.founders.forEach(founder => {
+          foundersResponse += `• ${founder.name} (${founder.role}) - ${founder.background}\n`;
+        });
+        
+        foundersResponse += "\nIs there anything specific about our team or company you'd like to know? ✨";
+        
+        setMessages(prev => [
+          ...prev, 
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: foundersResponse }
+        ]);
+      }
+      
+      setIsLoading(false);
+      return;
+    }
 
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
 
     try {
+      // Check for navigation or feature request keywords first
+      const lowerCaseMessage = userMessage.toLowerCase();
+      
+      // Navigation commands
+      if (lowerCaseMessage.includes("go to") || lowerCaseMessage.includes("navigate to") || lowerCaseMessage.includes("open")) {
+        for (const [feature, info] of Object.entries(appFeatures)) {
+          if (lowerCaseMessage.includes(feature)) {
+            // Navigate to the first page in the feature's pages array
+            navigate(info.pages[0]);
+            
+            setMessages(prev => [...prev, { 
+              role: 'assistant', 
+              content: `✨ I've opened the ${feature} feature for you! Let me know if you need any help using it. ✨` 
+            }]);
+            
+            setIsLoading(false);
+            return;
+          }
+        }
+      }
+      
+      // Help with app features
+      if (lowerCaseMessage.includes("how to use") || lowerCaseMessage.includes("explain feature") || 
+          lowerCaseMessage.includes("what is") || lowerCaseMessage.includes("how does")) {
+        for (const [feature, info] of Object.entries(appFeatures)) {
+          if (lowerCaseMessage.includes(feature)) {
+            setMessages(prev => [...prev, { 
+              role: 'assistant', 
+              content: `✨ The ${feature} feature lets you ${info.description}. Would you like me to open it for you? Just say "go to ${feature}" and I'll take you there! ✨` 
+            }]);
+            
+            setIsLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Regular response using Gemini
       const response = await getChatResponse(userMessage);
       
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
@@ -183,6 +404,24 @@ export function AIBuddyAssistant() {
       setDragOffset({ x: offsetX, y: offsetY });
       setIsDragging(true);
     }
+  };
+
+  const handleInputFocus = () => {
+    setShowSuggestions(true);
+  };
+
+  const handleInputBlur = () => {
+    // Add a small delay before hiding suggestions to allow for clicking them
+    setTimeout(() => setShowSuggestions(false), 200);
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setInput(suggestion);
+    // Auto-submit the suggestion
+    setTimeout(() => {
+      const form = document.querySelector('form') as HTMLFormElement;
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }, 100);
   };
 
   return (
@@ -252,7 +491,50 @@ export function AIBuddyAssistant() {
 
       {isOpen && (
         <div className="fixed bottom-6 right-6 z-50">
-          <Card className={`backdrop-blur-md bg-slate-900/95 border border-purple-500/30 shadow-lg overflow-hidden ${isMinimized ? 'w-64' : 'w-80 sm:w-96'}`}>
+          {showGuide && (
+            <div className="absolute inset-0 z-10 bg-black/60 rounded-lg overflow-hidden flex items-center justify-center">
+              <div className="bg-gradient-to-r from-indigo-900 to-purple-900 p-4 m-4 rounded-lg border border-purple-500 max-w-xs">
+                <h3 className="text-lg font-bold text-white mb-3 flex items-center">
+                  <Sparkles className="h-5 w-5 text-yellow-300 mr-2" />
+                  Assistant Guide
+                </h3>
+                <ul className="space-y-2 text-sm text-white/90">
+                  <li className="flex items-start gap-2">
+                    <div className="bg-purple-500 rounded-full text-white h-5 w-5 flex items-center justify-center text-xs shrink-0 mt-0.5">1</div>
+                    <span>Ask me to navigate to any feature: <span className="text-purple-300">"Go to code assistant"</span></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="bg-purple-500 rounded-full text-white h-5 w-5 flex items-center justify-center text-xs shrink-0 mt-0.5">2</div>
+                    <span>Get help with app features: <span className="text-purple-300">"How does BuddyResume work?"</span></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="bg-purple-500 rounded-full text-white h-5 w-5 flex items-center justify-center text-xs shrink-0 mt-0.5">3</div>
+                    <span>Ask academic questions: <span className="text-purple-300">"Explain binary search"</span></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="bg-purple-500 rounded-full text-white h-5 w-5 flex items-center justify-center text-xs shrink-0 mt-0.5">4</div>
+                    <span>Get coding help: <span className="text-purple-300">"How do I fix this React error?"</span></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="bg-purple-500 rounded-full text-white h-5 w-5 flex items-center justify-center text-xs shrink-0 mt-0.5">5</div>
+                    <span>Ask about our founders: <span className="text-purple-300">"Who created StudyBuddy?"</span></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="bg-purple-500 rounded-full text-white h-5 w-5 flex items-center justify-center text-xs shrink-0 mt-0.5">6</div>
+                    <span><span className="text-yellow-300">Tip:</span> Click on any suggestion below the input to instantly ask those questions!</span>
+                  </li>
+                </ul>
+                <Button 
+                  className="w-full mt-4 bg-purple-600 hover:bg-purple-700"
+                  onClick={() => setShowGuide(false)}
+                >
+                  Got it!
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <Card className="w-80 md:w-96 overflow-hidden shadow-2xl shadow-purple-500/20 border-purple-300/30">
             <div className="p-3 bg-gradient-to-r from-purple-700 to-indigo-700 flex items-center justify-between text-white">
               <div className="flex items-center gap-2">
                 <Star className="h-5 w-5 text-yellow-400" fill="currentColor" />
@@ -278,7 +560,7 @@ export function AIBuddyAssistant() {
               </div>
             </div>
 
-            <div className="h-[350px] p-3">
+            <div className="bg-slate-900 text-slate-200 h-80 overflow-hidden p-4">
               <ScrollArea className="h-full pr-4" ref={scrollAreaRef}>
                 <div className="space-y-4">
                   {messages.map((message, index) => (
@@ -314,23 +596,83 @@ export function AIBuddyAssistant() {
               </ScrollArea>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-3 pt-2 border-t border-purple-500/20 bg-slate-800/50">
-              <div className="flex gap-2">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask me anything..."
-                  disabled={isLoading}
-                  className="flex-1 text-sm bg-slate-800 border-purple-500/30 focus:border-purple-400"
-                />
-                <Button 
-                  type="submit" 
-                  size="icon"
-                  disabled={isLoading || !input.trim()}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+            <form onSubmit={handleSubmit} className="bg-slate-900 p-3 border-t border-slate-800">
+              <div className="relative">
+                <div className="flex gap-2">
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask me anything..."
+                    disabled={isLoading}
+                    className="flex-1 text-sm bg-slate-800 border-purple-500/30 focus:border-purple-400"
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
+                  />
+                  <Button 
+                    type="submit" 
+                    size="icon"
+                    disabled={isLoading || !input.trim()}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                {showSuggestions && (
+                  <div className="absolute bottom-full left-0 right-0 bg-slate-800 border border-slate-700 rounded-md max-h-40 overflow-auto z-10 mb-2">
+                    <div className="p-2 border-b border-slate-700 bg-slate-900/50">
+                      <span className="text-xs text-slate-400">App Features:</span>
+                    </div>
+                    {Object.keys(appFeatures).map((feature) => (
+                      <div 
+                        key={feature}
+                        className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
+                        onClick={() => handleSuggestionClick(`How do I use the ${feature} feature?`)}
+                      >
+                        How do I use the {feature} feature?
+                      </div>
+                    ))}
+                    <div className="p-2 border-b border-slate-700 border-t bg-slate-900/50">
+                      <span className="text-xs text-slate-400">Academic Help:</span>
+                    </div>
+                    {academicSubjects.slice(0, 3).map((subject) => (
+                      <div 
+                        key={subject}
+                        className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
+                        onClick={() => handleSuggestionClick(`Help me with ${subject}`)}
+                      >
+                        Help me with {subject}
+                      </div>
+                    ))}
+                    <div className="p-2 border-b border-slate-700 border-t bg-slate-900/50">
+                      <span className="text-xs text-slate-400">About Us:</span>
+                    </div>
+                    <div 
+                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
+                      onClick={() => handleSuggestionClick("Who are the founders of StudyBuddy?")}
+                    >
+                      Who are the founders of StudyBuddy?
+                    </div>
+                    <div 
+                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
+                      onClick={() => handleSuggestionClick("What is StudyBuddy's mission?")}
+                    >
+                      What is StudyBuddy's mission?
+                    </div>
+                    <div 
+                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
+                      onClick={() => handleSuggestionClick("Tell me about Raghava's role")}
+                    >
+                      Tell me about Raghava's role
+                    </div>
+                    <div 
+                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
+                      onClick={() => handleSuggestionClick("What does Vikas do as Chief Evangelist?")}
+                    >
+                      What does Vikas do as Chief Evangelist?
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
           </Card>

@@ -10,18 +10,19 @@ import Study from "./pages/Study";
 import CodeDiploMate from "./pages/CodeDiploMate";
 import Search from "./pages/Search";
 import NotFound from "./pages/NotFound";
-import Games from "./components/games/Games";
+import Games from "./pages/Games";
 import Groups from "./pages/Groups";
 import { gameRoutes } from "./routes/game-routes";
 import { Chat } from './components/Chat';
 import ChatPage from "./pages/ChatPage";
 import { CollaborateGroup } from './components/CollaborateGroup';
 import Profile from "@/components/auth/Profile";
-import Settings from "./components/auth/Settings";
+import Settings from "@/components/auth/Settings";
 import SignIn from '@/pages/SignIn';
 import { TestGroups } from './components/TestGroups';
 import FirebaseTest from './components/FirebaseTest';
 import FirestoreTest from './components/FirestoreTest';
+import BuddyResume from "./pages/BuddyResume";
 import { useEffect } from "react";
 import "./App.css";
 import { AIBuddyAssistant } from "./components/AIBuddyAssistant";
@@ -62,6 +63,7 @@ const App = () => {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/signin" element={<SignIn />} />
+                <Route path="/resume" element={<BuddyResume />} />
                 <Route path="/test-groups" element={<TestGroups />} />
                 <Route path="/firebase-test" element={<FirebaseTest />} />
                 <Route path="/firestore-test" element={<FirestoreTest />} />

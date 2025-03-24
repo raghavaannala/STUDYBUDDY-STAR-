@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import VideoCall from '@/components/video/VideoCall';
-import { generateCode, optimizeCode, explainCode, verifyApiConnection, resetChat } from '@/services/codeDiploMate';
+import { generateCode, optimizeCode, explainCode, verifyApiConnection, resetChat } from '@/services/codeGenerator';
 import * as groupService from '@/services/groupService';
 import * as chatService from '@/services/chatService';
 import * as userService from '@/services/userService';
