@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X } from 'lucide-react';
+import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X, User } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -16,10 +16,7 @@ import VideoCall from '@/components/video/VideoCall';
 import { generateCode, optimizeCode, explainCode, verifyApiConnection, resetChat } from '@/services/codeDiploMate';
 import * as groupService from '@/services/groupService';
 import * as chatService from '@/services/chatService';
-import { 
-  getUserProfile,
-  setUserOnlineStatus
-} from '@/services/userService';
+import * as userService from '@/services/userService';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
 
@@ -142,6 +139,10 @@ const Groups = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [interestType, setInterestType] = useState('');
+  // Add state to store user profiles
+  const [userProfiles, setUserProfiles] = useState<Record<string, userService.UserProfile>>({});
+  // Add a loading state if missing
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -171,21 +172,43 @@ const Groups = () => {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   };
 
+  // Add a function to fetch a user profile by ID
+  const fetchUserProfile = async (uid: string) => {
+    if (userProfiles[uid]) return userProfiles[uid];
+    
+    try {
+      const profile = await userService.getUserProfile(uid);
+      if (profile) {
+        setUserProfiles(prev => ({
+          ...prev,
+          [uid]: profile
+        }));
+        return profile;
+      }
+    } catch (error) {
+      console.error(`Error fetching user profile for ${uid}:`, error);
+    }
+    return null;
+  };
+
+  // Modify the fetchGroups function to also fetch creator profiles
   const fetchGroups = async () => {
     try {
-      if (!user) return;
-      const rtdbGroups = await groupService.getUserGroups(user.uid);
+      console.log('[Groups] Fetching groups for user');
+      setLoading(true);
       
-      // Convert RTDB groups to the format expected by the UI
-      const convertedGroups = rtdbGroups.map(group => ({
-        id: group.id,
-        privateId: group.code, // Use code as privateId
-        name: group.name,
-        description: group.description,
-        interest: group.tags?.[0] || 'programming',
-        members: group.members,
-        createdAt: group.createdAt, // Already a number from RTDB
-        createdBy: group.createdBy,
+      if (!user) {
+        setGroups([]);
+        return;
+      }
+      
+      const groups = await groupService.getUserGroups(user.uid);
+      
+      // Convert to UI format
+      const formattedGroups: GroupUI[] = groups.map(group => ({
+        ...group,
+        privateId: group.id.substring(0, 8),
+        interest: group.tags ? group.tags.join(', ') : '',
         activeCall: group.activeCall ? {
           initiator: group.activeCall.initiatedBy,
           participants: group.activeCall.participants,
@@ -194,14 +217,23 @@ const Groups = () => {
         } : undefined
       }));
       
-      setGroups(convertedGroups);
+      setGroups(formattedGroups);
+      
+      // Fetch creator profiles for each group
+      const creatorIds = [...new Set(formattedGroups.map(group => group.createdBy))];
+      for (const creatorId of creatorIds) {
+        fetchUserProfile(creatorId);
+      }
+      
     } catch (error) {
-      console.error('Error fetching groups:', error);
+      console.error('[Groups] Error fetching groups:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to fetch groups',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to load your groups. Please try again.",
+        variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -854,8 +886,30 @@ Note: This is a simplified example. For more complex responses, try again later 
     }
   };
 
+  // Update the handleDelete function to check if the user is the group creator
   const handleDelete = async (id: string) => {
     try {
+      // Get the group
+      const group = groups.find(g => g.id === id);
+      if (!group) {
+        toast({
+          title: "Error",
+          description: "Group not found",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if the current user is the creator
+      if (group.createdBy !== user?.uid) {
+        toast({
+          title: "Permission Denied",
+          description: "Only the group creator can delete this group.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Show confirmation toast
       toast({
         title: "Deleting Group",
@@ -1537,6 +1591,12 @@ Note: This is a simplified example. For more complex responses, try again later 
       }));
       
       setSearchResults(formattedResults);
+      
+      // Fetch creator profiles
+      const creatorIds = [...new Set(formattedResults.map(group => group.createdBy))];
+      for (const creatorId of creatorIds) {
+        fetchUserProfile(creatorId);
+      }
     } catch (error) {
       console.error('Error searching groups:', error);
       toast({
@@ -1805,12 +1865,15 @@ Note: This is a simplified example. For more complex responses, try again later 
                         <h3 className="text-xl font-semibold mb-2">{group.name}</h3>
                         <p className="text-muted-foreground mb-4">{group.description}</p>
                         <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-1">
                               {group.members.length} members
                             </span>
                             <span className="text-xs text-muted-foreground">
                               ID: {group.privateId}
+                            </span>
+                            <span className="text-xs bg-blue-500/10 text-blue-500 rounded-full px-2 py-1">
+                              Created by: {userProfiles[group.createdBy]?.displayName || 'Loading...'}
                             </span>
                             {group.activeCall && (
                               <span className="text-xs bg-red-500/10 text-red-500 rounded-full px-2 py-1 flex items-center gap-1">
@@ -1874,12 +1937,23 @@ Note: This is a simplified example. For more complex responses, try again later 
                               Edit
                             </Button>
                             <Button
-                              variant="destructive"
+                              variant={group.createdBy === user?.uid ? "destructive" : "outline"}
                               size="sm"
-                              onClick={() => handleDelete(group.id)}
+                              onClick={() => {
+                                if (group.createdBy === user?.uid) {
+                                  handleDelete(group.id);
+                                } else {
+                                  toast({
+                                    title: "Permission Denied",
+                                    description: "Only the group creator can delete this group.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              className={group.createdBy !== user?.uid ? "text-muted-foreground" : ""}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
-                              Delete
+                              {group.createdBy === user?.uid ? "Delete" : "Delete (Creator Only)"}
                             </Button>
                           </div>
                         </div>
@@ -1927,12 +2001,15 @@ Note: This is a simplified example. For more complex responses, try again later 
                         <h3 className="text-xl font-semibold mb-2">{group.name}</h3>
                         <p className="text-muted-foreground mb-4">{group.description}</p>
                         <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-1">
                               {group.members.length} members
                             </span>
                             <span className="text-xs text-muted-foreground">
                               ID: {group.privateId}
+                            </span>
+                            <span className="text-xs bg-blue-500/10 text-blue-500 rounded-full px-2 py-1">
+                              Created by: {userProfiles[group.createdBy]?.displayName || 'Loading...'}
                             </span>
                             {group.activeCall && (
                               <span className="text-xs bg-red-500/10 text-red-500 rounded-full px-2 py-1 flex items-center gap-1">
@@ -1996,12 +2073,23 @@ Note: This is a simplified example. For more complex responses, try again later 
                               Edit
                             </Button>
                             <Button
-                              variant="destructive"
+                              variant={group.createdBy === user?.uid ? "destructive" : "outline"}
                               size="sm"
-                              onClick={() => handleDelete(group.id)}
+                              onClick={() => {
+                                if (group.createdBy === user?.uid) {
+                                  handleDelete(group.id);
+                                } else {
+                                  toast({
+                                    title: "Permission Denied",
+                                    description: "Only the group creator can delete this group.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              className={group.createdBy !== user?.uid ? "text-muted-foreground" : ""}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
-                              Delete
+                              {group.createdBy === user?.uid ? "Delete" : "Delete (Creator Only)"}
                             </Button>
                           </div>
                         </div>
@@ -2581,6 +2669,11 @@ Note: This is a simplified example. For more complex responses, try again later 
                           <Users className="h-3 w-3" />
                           <span>{group.members.length} members</span>
                           
+                          <span className="flex items-center gap-1 text-blue-500">
+                            <User className="h-3 w-3" />
+                            Created by: {userProfiles[group.createdBy]?.displayName || 'Loading...'}
+                          </span>
+                          
                           {group.activeCall && (
                             <span className="flex items-center gap-1 text-red-500">
                               <Video className="h-3 w-3" />
@@ -2624,6 +2717,19 @@ Note: This is a simplified example. For more complex responses, try again later 
                           >
                             <Video className="h-4 w-4" />
                             Join Call
+                          </Button>
+                        )}
+                        
+                        {/* Add Delete button for creators */}
+                        {user && user.uid === group.createdBy && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(group.id)}
+                            className="flex items-center gap-1 mt-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete Group
                           </Button>
                         )}
                       </div>

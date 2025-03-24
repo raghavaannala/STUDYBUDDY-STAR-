@@ -209,7 +209,7 @@ const Hero = () => {
     { name: "Raghava", designation: "Full Stack & UI UX" },
     { name: "Deekshith", designation: "Full Stack & Backend" },
     { name: "Rajkumar", designation: "CSS Stylist" },
-    { name: "Anji", designation: "Data Visualizer" }
+    { name: "Anji", designation: "Data Analyst" }
   ];
   
   useEffect(() => {
