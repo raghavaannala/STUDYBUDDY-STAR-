@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: #1A1F2B;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,10 +9,21 @@
     <meta name="description" content="Lovable Generated Project" />
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
+    <style>
+      /* Force dark background on HTML and body */
+      html, body, #root {
+        background-color: #1A1F2B !important;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        width: 100%;
+        color: #FFFFFF;
+      }
+    </style>
   </head>
 
-  <body>
-    <div id="root"></div>
+  <body style="background-color: #1A1F2B;">
+    <div id="root" style="background-color: #1A1F2B; min-height: 100vh;"></div>
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>

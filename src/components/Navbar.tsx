@@ -1,23 +1,48 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/store/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { LogOut, LogIn, Users } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { SignInButton } from './auth/SignInButton';
 
 const Navbar = () => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSignOut = () => {
-    signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been successfully signed out.",
-    });
-    navigate('/');
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been successfully signed out.",
+      });
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+      toast({
+        title: "Welcome!",
+        description: "Successfully signed in with Google.",
+      });
+    } catch (error) {
+      console.error('Error signing in:', error);
+      toast({
+        title: "Error",
+        description: "Failed to sign in",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -28,26 +53,21 @@ const Navbar = () => {
             <div className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
               Study Buddy
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="ml-2"
-              onClick={() => navigate('/groups')}
-            >
-              Experience Now
-            </Button>
           </Link>
         </div>
 
         <div className="flex items-center gap-4">
           {user ? (
             <>
-              <Link to="/groups">
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Groups
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/groups')}
+                className="flex items-center gap-2"
+              >
+                <Users className="h-4 w-4" />
+                My Groups
+              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -59,7 +79,15 @@ const Navbar = () => {
               </Button>
             </>
           ) : (
-            <SignInButton />
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={handleSignIn}
+              className="flex items-center gap-2"
+            >
+              <LogIn className="h-4 w-4" />
+              Sign in with Google
+            </Button>
           )}
         </div>
       </div>

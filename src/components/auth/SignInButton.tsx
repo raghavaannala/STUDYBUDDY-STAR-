@@ -8,49 +8,137 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useAuth } from '@/store/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { UserMenu } from './UserMenu';
+import { auth, googleProvider } from '@/config/firebase';
+import { 
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
+} from 'firebase/auth';
+import { FaGoogle } from 'react-icons/fa';
 
 export function SignInButton() {
   const [open, setOpen] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState(auth.currentUser);
   const navigate = useNavigate();
-  const { signIn, user, isLoading, clearForm } = useAuth();
   const { toast } = useToast();
 
-  // Reset form when dialog closes
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+    });
+    
+    return () => unsubscribe();
+  }, []);
+
+  // Handle redirects from Google sign-in
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        
+        if (result) {
+          toast({
+            title: "Google Sign-in Successful",
+            description: `Welcome, ${result.user.displayName || 'User'}!`,
+          });
+          
+          setOpen(false);
+          navigate('/groups');
+        }
+      } catch (error: any) {
+        console.error('Redirect result error:', error);
+        
+        if (error.code !== 'auth/no-auth-event') {
+          toast({
+            title: "Google Sign-in Failed",
+            description: error.message || "Could not complete the Google sign-in.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    
+    handleRedirectResult();
+  }, [navigate, toast]);
+
+  // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setEmail('');
-      setPassword('');
-      setName('');
-      setIsRegistering(false);
-      clearForm();
+      setIsLoading(false);
     }
-  }, [open, clearForm]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  }, [open]);
+  
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
     try {
-      await signIn(email, password, isRegistering ? name : undefined);
-      toast({
-        title: `${isRegistering ? 'Registration' : 'Sign in'} successful!`,
-        description: `Welcome ${isRegistering ? 'to Study Buddy' : 'back'}!`,
+      // Configure Google sign-in parameters for better compatibility
+      googleProvider.setCustomParameters({
+        prompt: 'select_account'
       });
+      
+      // Try sign in with popup
+      const result = await signInWithPopup(auth, googleProvider);
+      
+      toast({
+        title: "Google Sign-in Successful",
+        description: `Welcome, ${result.user.displayName || 'User'}!`,
+      });
+      
       setOpen(false);
-      navigate('/profile');
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || `Failed to ${isRegistering ? 'register' : 'sign in'}. Please try again.`,
-        variant: 'destructive',
-      });
+      navigate('/groups');
+    } catch (popupError: any) {
+      console.error('Google sign-in popup error:', popupError);
+      console.error('Error code:', popupError.code);
+      console.error('Error message:', popupError.message);
+      
+      // If popup is blocked or fails, try redirect method as fallback
+      if (
+        popupError.code === 'auth/popup-blocked' || 
+        popupError.code === 'auth/popup-closed-by-user' ||
+        popupError.code === 'auth/cancelled-popup-request'
+      ) {
+        try {
+          toast({
+            title: "Using alternative sign-in method",
+            description: "Redirecting to Google sign-in...",
+          });
+          
+          // Try redirect method
+          await signInWithRedirect(auth, googleProvider);
+          return; // This will navigate away from the page
+        } catch (redirectError: any) {
+          console.error('Google redirect error:', redirectError);
+          
+          toast({
+            title: "Google Sign-in Failed",
+            description: redirectError.message || "Could not sign in with Google. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        // Handle other errors
+        let errorMessage = "An unexpected error occurred";
+        
+        if (popupError.code === 'auth/unauthorized-domain') {
+          errorMessage = "This domain is not authorized for Firebase authentication. Please add your domain in the Firebase console.";
+        } else if (popupError.code === 'auth/operation-not-allowed') {
+          errorMessage = "Google sign-in is not enabled for this project.";
+        } else {
+          errorMessage = popupError.message || "Could not sign in with Google. Please try again.";
+        }
+        
+        toast({
+          title: "Google Sign-in Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -71,68 +159,28 @@ export function SignInButton() {
         <DialogContent className="sm:max-w-[425px] vibranium-card">
           <DialogHeader>
             <DialogTitle className="vibranium-text">
-              {isRegistering ? 'Create Account' : 'Sign In'}
+              Sign In
             </DialogTitle>
             <DialogDescription>
-              {isRegistering 
-                ? 'Create your account to get started'
-                : 'Sign in to your account to continue'
-              }
+              Sign in with Google to access your account
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegistering && (
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required={isRegistering}
-                />
-              </div>
+          
+          <Button
+            type="button"
+            className="w-full vibranium-button flex items-center justify-center gap-2 py-6"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              "Connecting..."
+            ) : (
+              <>
+                <FaGoogle className="h-5 w-5" />
+                Sign in with Google
+              </>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-4">
-              <Button 
-                type="submit" 
-                className="w-full vibranium-button"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Processing...' : (isRegistering ? 'Register' : 'Sign In')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => setIsRegistering(!isRegistering)}
-                disabled={isLoading}
-              >
-                {isRegistering 
-                  ? 'Already have an account? Sign in' 
-                  : "Don't have an account? Register"}
-              </Button>
-            </div>
-          </form>
+          </Button>
         </DialogContent>
       </Dialog>
     </>

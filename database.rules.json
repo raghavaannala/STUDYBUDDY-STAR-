@@ -1,0 +1,54 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "groups": {
+      "$groupId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (data.child('createdBy').val() === auth.uid || newData.child('createdBy').val() === auth.uid)",
+        "members": {
+          ".read": "auth != null",
+          ".write": "auth != null && (data.parent().child('createdBy').val() === auth.uid || newData.parent().child('createdBy').val() === auth.uid || data.val().contains(auth.uid) || newData.val().contains(auth.uid))"
+        }
+      }
+    },
+    "chats": {
+      "$groupId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "messages": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    "calls": {
+      "$groupId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "participants": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "signaling": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    "users": {
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $userId"
+      }
+    },
+    "presence": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $userId"
+      }
+    }
+  }
+} 

@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // IMPORTANT: These are development-only rules that allow all access
+    // DO NOT use in production - restrict access appropriately before deployment
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+} 

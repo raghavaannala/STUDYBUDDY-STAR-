@@ -1,19 +1,20 @@
 export interface CallState {
-  initiator: string;
+  id: string;
+  startedAt: string;
   participants: string[];
-  startTime: Date;
+  status: 'active' | 'ended';
 }
 
 export interface Group {
   id: string;
-  privateId: string;
   name: string;
-  description: string;
-  interest: string;
-  members: string[];
-  createdAt: Date;
+  description?: string;
   createdBy: string;
-  activeCall?: CallState;
+  members: string[];
+  privateId: string;
+  activeCall?: CallState | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChatMessage {
