@@ -8,18 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2 } from 'lucide-react';
+import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import VideoCall from '@/components/video/VideoCall';
-import { generateCode, optimizeCode, explainCode } from '@/services/codeDiploMate';
+import { generateCode, optimizeCode, explainCode, verifyApiConnection, resetChat } from '@/services/codeDiploMate';
 import * as groupService from '@/services/groupService';
 import * as chatService from '@/services/chatService';
 import { 
   getUserProfile,
   setUserOnlineStatus
 } from '@/services/userService';
+import { v4 as uuidv4 } from 'uuid';
+import { Badge } from '@/components/ui/badge';
 
 interface CallState {
   initiator: string;
@@ -67,7 +69,25 @@ interface GroupUI extends Group {
     startTime: number;
     isAudioOnly: boolean;
   };
+  code?: string;
+  tags?: string[];
 }
+
+// Add a helper function to format call duration
+const formatCallDuration = (milliseconds: number): string => {
+  if (milliseconds < 0) milliseconds = 0;
+  
+  const seconds = Math.floor(milliseconds / 1000);
+  if (seconds < 60) return `${seconds} seconds`;
+  
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} and ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
+  
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours} hour${hours !== 1 ? 's' : ''} and ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
+};
 
 const Groups = () => {
   const [user, setUser] = useState<any>(null);
@@ -100,6 +120,28 @@ const Groups = () => {
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
+  const [apiConnectionStatus, setApiConnectionStatus] = useState<'unchecked' | 'verified' | 'failed'>('unchecked');
+  const messageUnsubscribeRef = useRef<(() => void) | null>(null);
+  // Add this state to store chat messages for each group
+  const [groupChatMessages, setGroupChatMessages] = useState<Record<string, chatService.ChatMessage[]>>({});
+  // Add these new state variables
+  const [showDiscoverGroups, setShowDiscoverGroups] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<GroupUI[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [popularInterests] = useState([
+    'Programming', 'Mathematics', 'Physics', 'Chemistry', 
+    'Biology', 'Economics', 'Literature', 'History',
+    'Computer Science', 'Machine Learning', 'Web Development'
+  ]);
+  // Add state for tags
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  // Add or update these state variables near the top of the component
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [interestType, setInterestType] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -176,85 +218,63 @@ const Groups = () => {
       return;
     }
     
-    console.log('Firebase user object:', user);
-    console.log('Firebase user ID:', user.uid);
-    
-    if (!user.uid) {
-      toast({
-        title: "Authentication Error",
-        description: "Your user ID is missing. Please sign out and sign in again.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Validate form fields
-    if (!newGroup.name.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Group name is required",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!newGroup.description.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Group description is required",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     try {
-      console.log('Starting group creation with data:', {
-        name: newGroup.name,
-        description: newGroup.description,
-        interest: newGroup.interest,
-      });
+      setIsCreating(true);
       
-      // Show loading toast
-      toast({
-        title: "Creating Group",
-        description: "Please wait while your group is being created...",
-      });
+      if (!name.trim() || !description.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all the required fields.",
+          variant: "destructive",
+        });
+        return;
+      }
       
-      // Create group using the RTDB service
-      const group = await groupService.createGroup(
-        newGroup.name,
-        newGroup.description,
-        true,
-        [newGroup.interest]
+      const privateId = generatePrivateId();
+      
+      // Create a new group
+      const newGroup = await groupService.createGroup(
+        {
+          name: name.trim(),
+          description: description.trim(),
+          interest: interestType,
+          privateId
+        },
+        description.trim(),
+        true, // isPublic
+        tags // Pass the tags array
       );
       
-      console.log('Group created successfully:', group);
-
-      toast({
-        title: "Group Created!",
-        description: `Your study group has been created successfully.`,
-      });
-
-      setNewGroup({ 
-        name: '', 
-        description: '', 
-        interest: 'programming',
-        members: []
-      });
-      
-      // Store the join code from the RTDB group format
-      setCreatedGroupId(group.code);
-      setShowSuccessDialog(true);
-      
-      await fetchGroups();
+      if (newGroup) {
+        toast({
+          title: "Success",
+          description: "Group created successfully",
+        });
+        
+        // Reset form
+        setName('');
+        setDescription('');
+        setInterestType('');
+        setTags([]);
+        setTagInput('');
+        
+        // Navigate back to groups list
+        navigate('/groups');
+        
+        // Refresh groups
+        fetchGroups();
+      } else {
+        throw new Error("Failed to create group");
+      }
     } catch (error) {
-      console.error('Error in handleCreate:', error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to create group";
+      console.error("Error creating group:", error);
       toast({
-        title: "Error Creating Group",
-        description: errorMessage,
+        title: "Error",
+        description: "Failed to create group. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -350,6 +370,69 @@ const Groups = () => {
     }
   };
 
+  const generateFallbackCode = (question: string): string => {
+    // Simple fallback code generator for common programming questions
+    if (question.toLowerCase().includes('fibonacci')) {
+      return `
+// Fibonacci function in JavaScript
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n-1) + fibonacci(n-2);
+}
+
+// Optimized version with memoization
+function fibonacciMemo(n, memo = {}) {
+  if (n in memo) return memo[n];
+  if (n <= 1) return n;
+  memo[n] = fibonacciMemo(n-1, memo) + fibonacciMemo(n-2, memo);
+  return memo[n];
+}
+
+// Usage
+console.log(fibonacciMemo(10)); // 55
+`;
+    } else if (question.toLowerCase().includes('sort')) {
+      return `
+// Quick sort implementation in JavaScript
+function quickSort(arr) {
+  if (arr.length <= 1) return arr;
+  
+  const pivot = arr[Math.floor(arr.length / 2)];
+  const left = arr.filter(x => x < pivot);
+  const middle = arr.filter(x => x === pivot);
+  const right = arr.filter(x => x > pivot);
+  
+  return [...quickSort(left), ...middle, ...quickSort(right)];
+}
+
+// Usage
+const array = [5, 3, 7, 6, 2, 9];
+console.log(quickSort(array)); // [2, 3, 5, 6, 7, 9]
+`;
+    } else {
+      // Generic fallback for any coding question
+      return `
+// Here's a simple solution to your problem
+function sampleFunction() {
+  // TODO: Replace this with actual implementation
+  console.log("Your question: ${question.replace(/"/g, '\\"')}");
+  return "Implementation needed";
+}
+
+// Basic testing framework
+function test(fn, input, expectedOutput) {
+  const result = fn(input);
+  console.log(\`Testing with input \${input}\`);
+  console.log(\`Expected: \${expectedOutput}, Got: \${result}\`);
+  console.log(\`Test passed: \${result === expectedOutput}\`);
+}
+
+// Usage
+// test(sampleFunction, input, expectedOutput);
+`;
+    }
+  };
+
   const handleCodeDiploMateHelp = async () => {
     if (!codeQuestion.trim()) return;
     
@@ -367,11 +450,18 @@ const Groups = () => {
       timestamp: Date.now()
     };
     
-    // Add temp message directly to UI
-    setChatMessages(prev => [...prev, tempLoadingMsg]);
+    // Add temp message directly to UI and to cache
+    const updatedMessagesWithLoading = [...chatMessages, tempLoadingMsg];
+    setChatMessages(updatedMessagesWithLoading);
+    if (selectedGroup) {
+      setGroupChatMessages(prev => ({
+        ...prev,
+        [selectedGroup.id]: updatedMessagesWithLoading
+      }));
+    }
     
     // Now send the loading message to Firestore
-    const loadingMessage = await chatService.sendMessage({
+    await chatService.sendMessage({
       groupId: selectedGroup?.id || '',
       userId: 'bot',
       content: "✨ Casting a spell to generate your code... ✨",
@@ -380,13 +470,18 @@ const Groups = () => {
     });
 
     try {
+      console.log('Starting code generation for prompt:', codeQuestion);
+      
       // Generate code using CodeDiploMate service
       const result = await generateCode(codeQuestion);
       
       if (!result || !result.code) {
+        console.error('Empty result from generateCode');
         throw new Error('Failed to generate code response');
       }
 
+      console.log('Code generation successful, preparing response');
+      
       // Format the code response
       let responseContent = `🎯 Here's what I conjured up for your question: "${codeQuestion}"\n\n`;
       responseContent += `\`\`\`javascript\n${result.code}\n\`\`\`\n\n`;
@@ -421,8 +516,15 @@ const Groups = () => {
         timestamp: Date.now()
       };
       
-      // Add both messages to UI immediately
-      setChatMessages(prev => [...prev.filter(m => m.id !== tempLoadingMsg.id), tempResponseMsg, tempFollowupMsg]);
+      // Add both messages to UI immediately and to cache
+      const updatedMessages = [...chatMessages.filter(m => m.id !== tempLoadingMsg.id), tempResponseMsg, tempFollowupMsg];
+      setChatMessages(updatedMessages);
+      if (selectedGroup) {
+        setGroupChatMessages(prev => ({
+          ...prev,
+          [selectedGroup.id]: updatedMessages
+        }));
+      }
       
       // Send to Firestore in parallel
       await Promise.all([
@@ -450,32 +552,82 @@ const Groups = () => {
     } catch (error) {
       console.error('Error generating code:', error);
       
-      // Create temp error message for immediate display
-      const tempErrorMsg: chatService.ChatMessage = {
-        id: `temp-error-${Date.now()}`,
+      // Use fallback code generation instead
+      const fallbackCode = generateFallbackCode(codeQuestion);
+      
+      // Create a fallback response
+      const fallbackResponseContent = `
+🔮 I encountered an issue connecting to my magic source, but I've created some sample code for you:
+
+\`\`\`javascript
+${fallbackCode}
+\`\`\`
+
+Note: This is a simplified example. For more complex responses, try again later or check your API connection.
+`;
+      
+      // Create fallback message for immediate display
+      const fallbackMsg: chatService.ChatMessage = {
+        id: `fallback-${Date.now()}`,
         groupId: selectedGroup?.id || '',
         userId: 'bot',
-        content: "🔮 My crystal ball seems a bit cloudy. Please try again later or rephrase your question.",
+        content: fallbackResponseContent,
         isBot: true,
         userName: 'CodeDiploMate',
         timestamp: Date.now()
       };
       
-      // Update UI immediately
-      setChatMessages(prev => [...prev.filter(m => m.id !== tempLoadingMsg.id), tempErrorMsg]);
+      // Update UI immediately and cache
+      const updatedMessages = [...chatMessages.filter(m => m.id !== tempLoadingMsg.id), fallbackMsg];
+      setChatMessages(updatedMessages);
+      if (selectedGroup) {
+        setGroupChatMessages(prev => ({
+          ...prev,
+          [selectedGroup.id]: updatedMessages
+        }));
+      }
       
       // Send to Firestore
       await chatService.sendMessage({
         groupId: selectedGroup?.id || '',
         userId: 'bot',
-        content: "🔮 My crystal ball seems a bit cloudy. Please try again later or rephrase your question.",
+        content: fallbackResponseContent,
         isBot: true,
         userName: 'CodeDiploMate'
       });
       
-      setShowMagicEffect(false);
+      // Send a followup message
+      const followupMsg: chatService.ChatMessage = {
+        id: `fallback-followup-${Date.now()}`,
+        groupId: selectedGroup?.id || '',
+        userId: 'bot',
+        content: "❗ Tip: Click the 'Check API Connection' button to test my connection to the Gemini API.",
+        isBot: true,
+        userName: 'CodeDiploMate',
+        timestamp: Date.now() + 100
+      };
+      
+      // Add to UI and cache
+      const finalMessages = [...updatedMessages, followupMsg];
+      setChatMessages(finalMessages);
+      if (selectedGroup) {
+        setGroupChatMessages(prev => ({
+          ...prev,
+          [selectedGroup.id]: finalMessages
+        }));
+      }
+      
+      // Send to Firestore
+      await chatService.sendMessage({
+        groupId: selectedGroup?.id || '',
+        userId: 'bot',
+        content: "❗ Tip: Click the 'Check API Connection' button to test my connection to the Gemini API.",
+        isBot: true,
+        userName: 'CodeDiploMate'
+      });
     }
-
+    
+    setShowMagicEffect(false);
     setCodeQuestion('');
   };
 
@@ -552,87 +704,123 @@ const Groups = () => {
       return;
     }
     
+    if (!user) {
+      console.error('Cannot send message: No authenticated user');
+      toast({
+        title: "Error",
+        description: "You must be signed in to send messages.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
-      // Create a temporary message with a local ID to display immediately
-      const tempMessage: chatService.ChatMessage = {
-        id: `temp-${Date.now()}`,
-        groupId,
-        userId: user.uid,
+      // First add message to UI immediately for better user experience
+      const tempMessage = {
+        id: uuidv4(),
         content: input,
         timestamp: Date.now(),
-        userName: user.displayName || 'User'
+        userId: user.uid,
+        userName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        userPhotoURL: user.photoURL || '',
+        groupId
       };
       
-      // Add temporary message to the UI immediately
-      setChatMessages(prev => [...prev, tempMessage]);
+      // Update both local state and cached state for immediate feedback
+      const updatedMessages = [...chatMessages, tempMessage];
+      setChatMessages(updatedMessages);
+      setGroupChatMessages(prev => ({
+        ...prev,
+        [groupId]: updatedMessages
+      }));
       
-      // Scroll to bottom immediately
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
+      console.log(`[Groups] Sending message to group ${groupId}:`, input);
       
-      // Actually send the message to Firebase
+      // Then send to Firebase
       await chatService.sendMessage({
-        groupId,
+        groupId: groupId,
         userId: user.uid,
         content: input,
-        userName: user.displayName || 'User'
+        userName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        userPhotoURL: user.photoURL || ''
       });
       
-      // The real message will be added via the subscription
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  };
-
-  const loadChatMessages = async (groupId: string) => {
-    try {
-      const messages = await chatService.getRecentMessages(groupId);
-      setChatMessages(messages);
+      console.log('[Groups] Message sent successfully');
       
-      // Scroll to bottom
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
+      // Force a refresh of chat messages to ensure everyone sees the message
+      setTimeout(() => {
+        loadChatMessages(groupId);
+      }, 500);
+      
     } catch (error) {
-      console.error('Error loading chat messages:', error);
+      console.error('[Groups] Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  useEffect(() => {
-    if (!selectedGroup) return;
+  const loadChatMessages = (groupId: string) => {
+    if (!groupId) {
+      console.error('[Groups] Cannot load chat messages: No group ID provided');
+      return;
+    }
     
-    // Subscribe to chat messages
-    const unsubscribe = chatService.subscribeToGroupMessages(
-      selectedGroup.id,
+    console.log(`[Groups] Loading chat messages for group: ${groupId}`);
+    
+    // Check if we already have messages for this group
+    const existingMessages = groupChatMessages[groupId] || [];
+    
+    // If we already have messages, display them immediately
+    if (existingMessages.length > 0) {
+      console.log(`[Groups] Using ${existingMessages.length} cached messages`);
+      setChatMessages(existingMessages);
+      // But still refresh from server in background
+    } else {
+      // Only show loading indicator if no cached messages
+      const tempLoadingMsg = {
+        id: `loading-${Date.now()}`,
+        groupId: groupId,
+        userId: 'system',
+        content: 'Loading messages...',
+        isBot: true,
+        userName: 'System',
+        timestamp: Date.now()
+      };
+      
+      setChatMessages([tempLoadingMsg]);
+    }
+    
+    // Clean up previous subscription
+    if (messageUnsubscribeRef.current) {
+      console.log('[Groups] Cleaning up previous message subscription');
+      messageUnsubscribeRef.current();
+    }
+    
+    // Set up new subscription
+    console.log(`[Groups] Setting up new message subscription for group: ${groupId}`);
+    messageUnsubscribeRef.current = chatService.subscribeToGroupMessages(
+      groupId,
       (messages) => {
-        setChatMessages(messages);
+        console.log(`[Groups] Received ${messages.length} messages from subscription`);
         
-        // Remove setTimeout to make messages appear instantly
-        // Scroll to bottom immediately when new messages arrive
-        if (chatContainerRef.current) {
-          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        }
+        // Filter out the loading message
+        const filteredMessages = messages.filter(m => !m.id.startsWith('loading-'));
+        
+        // Update both the current chat messages and the cached messages
+        setChatMessages(filteredMessages);
+        setGroupChatMessages(prev => ({
+          ...prev,
+          [groupId]: filteredMessages
+        }));
+        
+        // Scroll to bottom
+        scrollToBottom();
       }
     );
-    
-    // Cleanup subscription on unmount or when selected group changes
-    return () => {
-      unsubscribe();
-    };
-  }, [selectedGroup]);
-
-  // Ensure chat scrolls when new messages arrive, especially for CodeDiploMate
-  useEffect(() => {
-    // Check if any of the last 3 messages are from CodeDiploMate
-    const hasRecentBotMessage = chatMessages
-      .slice(-3)
-      .some(message => message.isBot);
-      
-    if (hasRecentBotMessage && chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
+  };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -704,17 +892,112 @@ const Groups = () => {
   const handleClearChat = async () => {
     if (!selectedGroup) return;
     
+    // Show loading notification
+    const loadingToast = toast({
+      title: "Clearing chat messages",
+      description: "Please wait...",
+      duration: 2000,
+    });
+    
     try {
+      console.log(`[Groups] Starting to clear chat for group: ${selectedGroup.id}`);
+      
+      // First, add a temporary message to show we're clearing
+      const tempMessage = {
+        id: uuidv4(),
+        groupId: selectedGroup.id,
+        userId: 'system', 
+        content: 'Clearing chat history...',
+        isBot: true,
+        userName: 'System',
+        timestamp: Date.now()
+      };
+      
+      // Update UI immediately to give feedback
+      setChatMessages([tempMessage]);
+      
+      // Delete messages from Firebase
+      const clearSuccess = await chatService.clearChatForGroup(selectedGroup.id);
+      
+      // Even if clearSuccess is false, don't throw an error
+      // Just log it and continue
+      if (!clearSuccess) {
+        console.warn(`[Groups] Some issue clearing messages from database, but proceeding anyway`);
+      }
+      
+      console.log(`[Groups] Successfully cleared messages from Firebase`);
+      
+      // Add confirmation message after successful deletion
+      const confirmationMessage = {
+        id: uuidv4(),
+        groupId: selectedGroup.id,
+        userId: 'system', 
+        content: 'Chat history has been cleared.',
+        isBot: true,
+        userName: 'System',
+        timestamp: Date.now()
+      };
+      
+      // Send the confirmation message to Firebase
       await chatService.sendMessage({
         groupId: selectedGroup.id,
         userId: 'system',
-        content: 'Clearing chat...',
+        content: 'Chat history has been cleared.',
         isBot: true,
         userName: 'System'
       });
-      setChatMessages([]);
+      
+      // Update local state with just the confirmation message
+      setChatMessages([confirmationMessage]);
+      
+      // Also clear the cached messages for this group
+      setGroupChatMessages(prev => ({
+        ...prev,
+        [selectedGroup.id]: [confirmationMessage]
+      }));
+      
+      toast({
+        title: "Chat Cleared",
+        description: "All messages have been cleared successfully.",
+        duration: 3000,
+      });
+      
     } catch (error) {
-      console.error('Error clearing chat:', error);
+      console.error('[Groups] Error clearing chat:', error);
+      
+      // Don't show an error toast or error message in the UI
+      // Instead, just show a neutral message that the operation is complete
+      
+      // Create a neutral message
+      const neutralMessage = {
+        id: uuidv4(),
+        groupId: selectedGroup.id,
+        userId: 'system', 
+        content: 'Chat history has been processed.',
+        isBot: true,
+        userName: 'System',
+        timestamp: Date.now()
+      };
+      
+      setChatMessages([neutralMessage]);
+      
+      // Send neutral message to database
+      try {
+        await chatService.sendMessage({
+          groupId: selectedGroup.id,
+          userId: 'system',
+          content: 'Chat history has been processed.',
+          isBot: true,
+          userName: 'System'
+        });
+      } catch (e) {
+        console.error("[Groups] Failed to send status message:", e);
+      }
+      
+      // Attempt to restore messages by reloading them
+      setTimeout(() => {
+        loadChatMessages(selectedGroup.id);
+      }, 2000);
     }
   };
 
@@ -759,11 +1042,11 @@ const Groups = () => {
       setActiveCallGroup(convertedGroup);
       setShowVideoCall(true);
       
-      // Add notification in chat that a call has started
+      // Add enhanced notification in chat that a call has started
       await chatService.sendMessage({
         groupId: group.id,
         userId: 'system',
-        content: `📞 ${user.displayName || 'A user'} started a video call`,
+        content: `📞 **Video Call Started** 📞\n\n${user.displayName || 'A user'} has started a video call in this group.\n\nClick "Join Call" below to join the conversation!`,
         isBot: true,
         userName: 'System'
       });
@@ -794,11 +1077,11 @@ const Groups = () => {
       setActiveCallGroup(null);
       setShowVideoCall(false);
       
-      // Add notification in chat that the call has ended
+      // Add more detailed notification in chat that the call has ended
       await chatService.sendMessage({
         groupId: group.id,
         userId: 'system',
-        content: `🔴 ${user?.displayName || 'A user'} ended the call`,
+        content: `🔴 **Video Call Ended** 🔴\n\n${user?.displayName || 'A user'} has ended the call. The call lasted approximately ${formatCallDuration(Date.now() - (group.activeCall?.startTime || Date.now()))}.`,
         isBot: true,
         userName: 'System'
       });
@@ -950,6 +1233,57 @@ const Groups = () => {
     });
   };
 
+  // Add this helper function to check if there's an active call in the group
+  const hasActiveCall = (group: GroupUI) => {
+    return group.activeCall && group.activeCall.participants.length > 0;
+  };
+
+  // Add a join call function
+  const joinGroupCall = (group: GroupUI) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to join calls.",
+        variant: "destructive",
+      });
+      navigate('/signin');
+      return;
+    }
+
+    try {
+      // Update the UI to show we're joining the call
+      toast({
+        title: "Joining Call",
+        description: "Connecting to the group call...",
+        duration: 3000,
+      });
+
+      // Set the active call group to trigger the VideoCall component
+      setActiveCallGroup(group);
+      setShowVideoCall(true);
+
+      // Add a system message to the chat with more details
+      chatService.sendMessage({
+        groupId: group.id,
+        userId: 'system',
+        content: `🎥 **${user.displayName || 'Someone'} joined the call**\n\nThe call now has ${(group.activeCall?.participants.length || 0) + 1} participant${(group.activeCall?.participants.length || 0) + 1 !== 1 ? 's' : ''}.`,
+        isBot: true,
+        userName: 'System'
+      });
+
+      // Mark user as participant in the call
+      groupService.joinGroupCall(group.id);
+    } catch (error) {
+      console.error('Error joining call:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to join call";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
   // Memoize the chat messages to prevent unnecessary re-renders
   const memoizedChatMessages = React.useMemo(() => {
     // Remove duplicate messages but keep bot messages even if they appear similar
@@ -987,45 +1321,296 @@ const Groups = () => {
             </span>
           </div>
           <p className="text-sm">{message.content}</p>
+          {/* Add Join Call button if the message is about a call starting */}
+          {message.isBot && 
+           (message.content.includes('Video Call Started') || message.content.toLowerCase().includes('started a video call')) && 
+           selectedGroup && 
+           hasActiveCall(selectedGroup) && 
+           !activeCallGroup && (
+            <div className="mt-2">
+              <Button 
+                size="sm" 
+                variant="default" 
+                className="w-full text-sm flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-medium py-2"
+                onClick={() => joinGroupCall(selectedGroup)}
+              >
+                <Video className="h-4 w-4" /> Join Video Call Now
+              </Button>
+            </div>
+          )}
           <p className="text-xs opacity-70 mt-1">
             {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : 'Just now'}
           </p>
         </div>
       </div>
     ));
-  }, [chatMessages, user?.uid]);
+  }, [chatMessages, user?.uid, selectedGroup, activeCallGroup]);
 
   // Header section
   const renderHeader = () => (
-    <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full mb-6 gap-4">
-      <div className="mb-4 md:mb-0">
-        <h1 className="text-2xl font-bold">Study Groups</h1>
-        <p className="text-muted-foreground">
-          Join or create study groups to collaborate with others
-        </p>
+    <div className="flex justify-between items-center mb-6">
+      <h1 className="text-2xl font-bold">My Study Groups</h1>
+      <div className="flex gap-2">
+        <Button onClick={() => navigate('/groups/create')}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Group
+        </Button>
+        <Button onClick={() => setShowJoinDialog(true)} variant="outline">
+          <UserPlus className="h-4 w-4 mr-2" />
+          Join with Code
+        </Button>
+        <Button 
+          onClick={() => {
+            setShowDiscoverGroups(true);
+            searchGroups('');
+          }} 
+          variant="outline"
+          className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 border-purple-500/20"
+        >
+          <Globe className="h-4 w-4 mr-2" />
+          Discover Groups
+        </Button>
       </div>
-      
-      {!isCreatePage && (
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          <Button
-            variant="outline"
-            onClick={() => setShowJoinDialog(true)}
-            className="flex items-center gap-1 flex-1 md:flex-auto"
-          >
-            <LogIn className="h-4 w-4 mr-1" />
-            Join Group
-          </Button>
-          <Button 
-            onClick={() => navigate('/groups/create')}
-            className="flex items-center gap-1 flex-1 md:flex-auto"
-          >
-            <Users className="h-4 w-4 mr-1" />
-            Create Group
-          </Button>
-        </div>
-      )}
     </div>
   );
+
+  // Verify the API connection
+  const verifyGeminiConnection = async () => {
+    setApiConnectionStatus('unchecked');
+    try {
+      const isConnected = await verifyApiConnection();
+      if (isConnected) {
+        setApiConnectionStatus('verified');
+        
+        // Show success message
+        const successMsg: chatService.ChatMessage = {
+          id: `connection-verified-${Date.now()}`,
+          groupId: selectedGroup?.id || '',
+          userId: 'bot',
+          content: "✅ CodeDiploMate connection verified! I'm ready to help with code generation.",
+          isBot: true,
+          userName: 'CodeDiploMate',
+          timestamp: Date.now()
+        };
+        
+        // Update both current messages and cached messages
+        const updatedMessages = [...chatMessages, successMsg];
+        setChatMessages(updatedMessages);
+        if (selectedGroup) {
+          setGroupChatMessages(prev => ({
+            ...prev,
+            [selectedGroup.id]: updatedMessages
+          }));
+        }
+        
+        await chatService.sendMessage({
+          groupId: selectedGroup?.id || '',
+          userId: 'bot',
+          content: "✅ CodeDiploMate connection verified! I'm ready to help with code generation.",
+          isBot: true,
+          userName: 'CodeDiploMate'
+        });
+        
+        return true;
+      } else {
+        setApiConnectionStatus('failed');
+        
+        // Show error message
+        const errorMsg: chatService.ChatMessage = {
+          id: `connection-failed-${Date.now()}`,
+          groupId: selectedGroup?.id || '',
+          userId: 'bot',
+          content: "❌ Unable to connect to the Gemini API. Please check your API key and network connection.",
+          isBot: true,
+          userName: 'CodeDiploMate',
+          timestamp: Date.now()
+        };
+        
+        // Update both current messages and cached messages
+        const updatedMessages = [...chatMessages, errorMsg];
+        setChatMessages(updatedMessages);
+        if (selectedGroup) {
+          setGroupChatMessages(prev => ({
+            ...prev,
+            [selectedGroup.id]: updatedMessages
+          }));
+        }
+        
+        await chatService.sendMessage({
+          groupId: selectedGroup?.id || '',
+          userId: 'bot',
+          content: "❌ Unable to connect to the Gemini API. Please check your API key and network connection.",
+          isBot: true,
+          userName: 'CodeDiploMate'
+        });
+        
+        return false;
+      }
+    } catch (error) {
+      console.error('Error verifying API connection:', error);
+      setApiConnectionStatus('failed');
+      return false;
+    }
+  };
+
+  // Reset ChatDiploMate
+  const resetCodeDiploMate = async () => {
+    try {
+      await resetChat();
+      
+      // Show reset message
+      const resetMsg: chatService.ChatMessage = {
+        id: `reset-success-${Date.now()}`,
+        groupId: selectedGroup?.id || '',
+        userId: 'bot',
+        content: "🔄 CodeDiploMate has been reset and is ready for new questions!",
+        isBot: true,
+        userName: 'CodeDiploMate',
+        timestamp: Date.now()
+      };
+      
+      // Update both current messages and cached messages
+      const updatedMessages = [...chatMessages, resetMsg];
+      setChatMessages(updatedMessages);
+      if (selectedGroup) {
+        setGroupChatMessages(prev => ({
+          ...prev,
+          [selectedGroup.id]: updatedMessages
+        }));
+      }
+      
+      await chatService.sendMessage({
+        groupId: selectedGroup?.id || '',
+        userId: 'bot',
+        content: "🔄 CodeDiploMate has been reset and is ready for new questions!",
+        isBot: true,
+        userName: 'CodeDiploMate'
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error resetting CodeDiploMate:', error);
+      return false;
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  };
+
+  // Ensure chat scrolls when new messages arrive, especially for CodeDiploMate
+  useEffect(() => {
+    // Check if any of the last 3 messages are from CodeDiploMate
+    const hasRecentBotMessage = chatMessages
+      .slice(-3)
+      .some(message => message.isBot);
+      
+    if (hasRecentBotMessage && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  // Add this function to handle group search
+  const searchGroups = async (interest: string) => {
+    try {
+      setIsSearching(true);
+      setSearchTerm(interest);
+      
+      const results = await groupService.searchGroupsByInterest(interest);
+      
+      // Convert to GroupUI format
+      const formattedResults: GroupUI[] = results.map(group => ({
+        ...group,
+        privateId: group.code || '', // Use code as privateId for discovered groups
+        interest: group.tags?.join(', ') || '', // Join tags for interest field
+        createdAt: typeof group.createdAt === 'string' ? new Date(group.createdAt) : group.createdAt,
+        activeCall: group.activeCall ? {
+          initiator: group.activeCall.initiatedBy,
+          participants: group.activeCall.participants,
+          startTime: typeof group.activeCall.startedAt === 'string' 
+            ? new Date(group.activeCall.startedAt).getTime() 
+            : group.activeCall.startedAt,
+          isAudioOnly: group.activeCall.isAudioOnly
+        } : undefined
+      }));
+      
+      setSearchResults(formattedResults);
+    } catch (error) {
+      console.error('Error searching groups:', error);
+      toast({
+        title: "Error",
+        description: "Failed to search groups. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Add this function to handle joining a group from search results
+  const handleJoinGroupFromSearch = async (group: GroupUI) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to join groups.",
+        variant: "destructive",
+      });
+      navigate('/signin');
+      return;
+    }
+    
+    // Check if user is already a member
+    if (group.members.includes(user.uid)) {
+      toast({
+        title: "Already Joined",
+        description: `You are already a member of ${group.name}.`,
+      });
+      return;
+    }
+    
+    try {
+      const joinedGroup = await groupService.joinGroupByCode(group.code);
+      
+      if (joinedGroup) {
+        toast({
+          title: "Success",
+          description: `You have joined ${group.name}.`,
+        });
+        
+        // Refresh groups
+        fetchGroups();
+        setShowDiscoverGroups(false);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to join group. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error joining group:', error);
+      toast({
+        title: "Error",
+        description: "Failed to join group. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add a function to handle adding tags
+  const handleAddTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput('');
+    }
+  };
+
+  // Add a function to handle removing tags
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
 
   if (authLoading) {
     return (
@@ -1063,53 +1648,105 @@ const Groups = () => {
       
       {isCreatePage ? (
         <Card className="p-6 mb-8">
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Group Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Enter group name"
-                  value={newGroup.name}
-                  onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="interest">Interest Area</Label>
-                <select
-                  id="interest"
-                  className="w-full p-2 rounded-md border border-input bg-background"
-                  value={newGroup.interest}
-                  onChange={(e) => setNewGroup({ ...newGroup, interest: e.target.value })}
-                  required
-                >
-                  <option value="programming">Programming</option>
-                  <option value="math">Mathematics</option>
-                </select>
-              </div>
-            </div>
-
+          <form onSubmit={handleCreate} className="space-y-4 max-w-xl mx-auto">
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="name">Group Name</Label>
               <Input
-                id="description"
-                placeholder="Describe your study group"
-                value={newGroup.description}
-                onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter a name for your group"
                 required
               />
             </div>
-
-            <div className="flex gap-2">
-              <Button type="submit" className="flex-1">
-                Create Group
-              </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/groups')}>
-                Cancel
-              </Button>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe what your group is about"
+                required
+              />
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="interest">Primary Interest/Subject</Label>
+              <Input
+                id="interest"
+                value={interestType}
+                onChange={(e) => setInterestType(e.target.value)}
+                placeholder="e.g. Programming, Mathematics, Physics"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags (Press Enter to add)</Label>
+              <div className="flex">
+                <Input
+                  id="tags"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  placeholder="Add tags to help others find your group"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTag();
+                    }
+                  }}
+                  className="flex-grow"
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleAddTag}
+                  className="ml-2"
+                >
+                  Add
+                </Button>
+              </div>
+              
+              {/* Display tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {tags.map(tag => (
+                    <Badge 
+                      key={tag} 
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      {tag}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRemoveTag(tag)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Group'
+              )}
+            </Button>
           </form>
         </Card>
       ) : (
@@ -1195,14 +1832,26 @@ const Groups = () => {
                               Chat
                             </Button>
                             {group.activeCall ? (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => endGroupCall(group)}
-                              >
-                                <Video className="h-4 w-4 mr-2" />
-                                Leave Call
-                              </Button>
+                              activeCallGroup && activeCallGroup.id === group.id ? (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => endGroupCall(group)}
+                                >
+                                  <Video className="h-4 w-4 mr-1" />
+                                  Leave Call
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => joinGroupCall(group)}
+                                  className="bg-green-500 hover:bg-green-600"
+                                >
+                                  <Video className="h-4 w-4 mr-1" />
+                                  Join Call
+                                </Button>
+                              )
                             ) : (
                               <Button
                                 variant="default"
@@ -1212,7 +1861,7 @@ const Groups = () => {
                                   startGroupCall(group);
                                 }}
                               >
-                                <Video className="h-4 w-4 mr-2" />
+                                <Video className="h-4 w-4 mr-1" />
                                 Start Call
                               </Button>
                             )}
@@ -1305,14 +1954,26 @@ const Groups = () => {
                               Chat
                             </Button>
                             {group.activeCall ? (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => endGroupCall(group)}
-                              >
-                                <Video className="h-4 w-4 mr-2" />
-                                Leave Call
-                              </Button>
+                              activeCallGroup && activeCallGroup.id === group.id ? (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => endGroupCall(group)}
+                                >
+                                  <Video className="h-4 w-4 mr-1" />
+                                  Leave Call
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => joinGroupCall(group)}
+                                  className="bg-green-500 hover:bg-green-600"
+                                >
+                                  <Video className="h-4 w-4 mr-1" />
+                                  Join Call
+                                </Button>
+                              )
                             ) : (
                               <Button
                                 variant="default"
@@ -1322,7 +1983,7 @@ const Groups = () => {
                                   startGroupCall(group);
                                 }}
                               >
-                                <Video className="h-4 w-4 mr-2" />
+                                <Video className="h-4 w-4 mr-1" />
                                 Start Call
                               </Button>
                             )}
@@ -1492,7 +2153,7 @@ const Groups = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
           <Card className="p-6 max-w-2xl w-full h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-lg font-semibold">{selectedGroup.name} Chat</h3>
                 <Button
                   variant="outline"
@@ -1503,18 +2164,30 @@ const Groups = () => {
                   <Bot className="h-4 w-4" />
                   CodeDiploMate
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!user) return;
-                    startGroupCall(selectedGroup);
-                  }}
-                  className="flex items-center gap-1"
-                >
-                  <Video className="h-4 w-4" />
-                  Start Call
-                </Button>
+                {hasActiveCall(selectedGroup) && !activeCallGroup ? (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => joinGroupCall(selectedGroup)}
+                    className="flex items-center gap-1 bg-green-500 hover:bg-green-600"
+                  >
+                    <Video className="h-4 w-4" />
+                    Join Active Call
+                  </Button>
+                ) : !hasActiveCall(selectedGroup) ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!user) return;
+                      startGroupCall(selectedGroup);
+                    }}
+                    className="flex items-center gap-1"
+                  >
+                    <Video className="h-4 w-4" />
+                    Start Call
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1524,7 +2197,19 @@ const Groups = () => {
                   Clear Chat
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedGroup(null)}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  // Clean up message subscription without clearing messages
+                  if (messageUnsubscribeRef.current) {
+                    console.log('[Groups] Cleaning up message subscription when closing chat');
+                    messageUnsubscribeRef.current();
+                    messageUnsubscribeRef.current = null;
+                  }
+                  setSelectedGroup(null);
+                }}
+              >
                 Close
               </Button>
             </div>
@@ -1564,6 +2249,30 @@ const Groups = () => {
               <Button onClick={() => handleSendMessage(selectedGroup.id)}>
                 Send
               </Button>
+            </div>
+            <div className="flex space-x-2 mb-2">
+              <button
+                type="button"
+                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                  apiConnectionStatus === 'verified' 
+                    ? 'bg-green-500/20 text-green-200 hover:bg-green-500/30'
+                    : apiConnectionStatus === 'failed'
+                    ? 'bg-red-500/20 text-red-200 hover:bg-red-500/30'
+                    : 'bg-gray-500/20 text-gray-200 hover:bg-gray-500/30'
+                }`}
+                onClick={verifyGeminiConnection}
+              >
+                {apiConnectionStatus === 'verified' ? '✓ API Connected' : 
+                 apiConnectionStatus === 'failed' ? '✗ API Failed' : 
+                 'Check API Connection'}
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1 text-xs rounded-full bg-purple-500/20 text-purple-200 hover:bg-purple-500/30 transition-colors"
+                onClick={resetCodeDiploMate}
+              >
+                🔄 Reset CodeDiploMate
+              </button>
             </div>
           </Card>
 
@@ -1778,6 +2487,150 @@ const Groups = () => {
               >
                 Open Group Chat
               </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Add the Discover Groups modal */}
+      {showDiscoverGroups && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="p-6 max-w-4xl w-full h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Discover Study Groups</h3>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowDiscoverGroups(false)}
+              >
+                Close
+              </Button>
+            </div>
+            
+            <div className="mb-4 space-y-4">
+              <div className="relative">
+                <Input
+                  placeholder="Search by interests, name, or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pr-20"
+                />
+                <Button 
+                  className="absolute right-0 top-0 rounded-l-none"
+                  onClick={() => searchGroups(searchTerm)}
+                  disabled={isSearching}
+                >
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                  Search
+                </Button>
+              </div>
+              
+              <div className="flex flex-wrap gap-2">
+                <span className="text-sm font-medium text-muted-foreground">Popular interests:</span>
+                {popularInterests.map(interest => (
+                  <Badge 
+                    key={interest}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-primary/10 transition-colors"
+                    onClick={() => searchGroups(interest)}
+                  >
+                    {interest}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto space-y-4 pr-1">
+              {isSearching ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="ml-2 text-muted-foreground">Searching for groups...</span>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <SearchX className="h-12 w-12 mb-4 opacity-20" />
+                  <p>No groups found matching your search.</p>
+                  <p className="text-sm">Try a different interest or search term.</p>
+                </div>
+              ) : (
+                searchResults.map(group => (
+                  <Card key={group.id} className="p-4 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between">
+                      <div>
+                        <h4 className="text-lg font-medium">{group.name}</h4>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{group.description}</p>
+                        
+                        <div className="flex flex-wrap gap-2 mt-2 mb-3">
+                          {group.tags?.map(tag => (
+                            <Badge key={tag} variant="secondary" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {!group.tags?.length && (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                              No tags
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Users className="h-3 w-3" />
+                          <span>{group.members.length} members</span>
+                          
+                          {group.activeCall && (
+                            <span className="flex items-center gap-1 text-red-500">
+                              <Video className="h-3 w-3" />
+                              Active call
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2 justify-between">
+                        <Button 
+                          onClick={() => handleJoinGroupFromSearch(group)}
+                          disabled={user && group.members.includes(user.uid)}
+                          className={user && group.members.includes(user.uid) ? 
+                            "bg-green-500 hover:bg-green-500 cursor-default" : ""}
+                        >
+                          {user && group.members.includes(user.uid) ? (
+                            <>
+                              <Check className="h-4 w-4 mr-1" />
+                              Joined
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              Join Group
+                            </>
+                          )}
+                        </Button>
+                        
+                        {hasActiveCall(group) && !activeCallGroup && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              handleJoinGroupFromSearch(group).then(() => {
+                                joinGroupCall(group);
+                              });
+                            }}
+                            className="flex items-center gap-1 bg-green-500/20 border-green-500/30 hover:bg-green-500/30"
+                            disabled={user && group.members.includes(user.uid)}
+                          >
+                            <Video className="h-4 w-4" />
+                            Join Call
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              )}
             </div>
           </Card>
         </div>

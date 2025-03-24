@@ -21,6 +21,7 @@ export const sendMessage = async (
     content: string;
     isBot?: boolean;
     userName?: string;
+    userPhotoURL?: string;
   },
   content?: string,
   userName?: string,
@@ -31,6 +32,7 @@ export const sendMessage = async (
     let groupId: string;
     let messageContent: string;
     let messageUserName: string = '';
+    let messageUserPhotoURL: string = '';
     let messageIsBot: boolean = false;
     let userId: string;
     
@@ -39,12 +41,14 @@ export const sendMessage = async (
       groupId = groupIdOrMessage.groupId;
       messageContent = groupIdOrMessage.content;
       messageUserName = groupIdOrMessage.userName || '';
+      messageUserPhotoURL = groupIdOrMessage.userPhotoURL || '';
       messageIsBot = groupIdOrMessage.isBot || false;
       userId = groupIdOrMessage.userId;
     } else {
       groupId = groupIdOrMessage;
       messageContent = content || '';
       messageUserName = userName || '';
+      messageUserPhotoURL = userPhotoURL || '';
       messageIsBot = isBot;
       userId = auth.currentUser?.uid || 'anonymous';
     }
@@ -57,7 +61,7 @@ export const sendMessage = async (
       timestamp: Date.now(),
       userId,
       userName: messageUserName,
-      userPhotoURL,
+      userPhotoURL: messageUserPhotoURL,
       isBot: messageIsBot,
       groupId
     };
@@ -80,6 +84,8 @@ export const subscribeToGroupMessages = (
   
   // Ensure we're looking at the correct path
   const messagesRef = ref(rtdb, `chats/${groupId}/messages`);
+  
+  // Use orderByChild with timestamp for proper ordering
   const messagesQuery = query(messagesRef, orderByChild('timestamp'));
   
   // Debug info - add more logging
@@ -90,25 +96,51 @@ export const subscribeToGroupMessages = (
     
     console.log(`[ChatService] Snapshot received for group ${groupId} - has children: ${snapshot.exists()}`);
     
+    if (!snapshot.exists()) {
+      console.log(`[ChatService] No messages found for group ${groupId}`);
+      callback([]); // Return empty array for empty chat
+      return;
+    }
+    
     snapshot.forEach((childSnapshot) => {
       const data = childSnapshot.val();
       
+      // If data is malformed, skip this message
+      if (!data || !data.content) {
+        console.warn(`[ChatService] Skipping malformed message data:`, data);
+        return;
+      }
+      
       // Debug logging for all messages
-      console.log(`[ChatService] Message received - ID: ${data.id}, Content: ${
+      console.log(`[ChatService] Message received - ID: ${data.id || childSnapshot.key}, Content: ${
         data.content?.length > 50 ? `${data.content.substring(0, 50)}...` : data.content
-      }, Time: ${new Date(data.timestamp).toLocaleTimeString()}, User: ${data.userName}`);
+      }, Time: ${new Date(data.timestamp || 0).toLocaleTimeString()}, User: ${data.userName || 'Unknown'}`);
+      
+      // Ensure we have an ID even if the original message didn't include one
+      const messageId = data.id || childSnapshot.key || uuidv4();
+      
+      // Ensure timestamp is a valid number
+      const timestamp = typeof data.timestamp === 'number' ? data.timestamp : Date.now();
       
       messages.push({
         ...data,
-        key: childSnapshot.key,
-        groupId  // Make sure the groupId is always included
+        id: messageId,
+        timestamp: timestamp, 
+        groupId: groupId, // Ensure groupId is always set
+        userName: data.userName || 'Anonymous', // Ensure userName is always set
+        userId: data.userId || 'unknown' // Ensure userId is always set
       });
     });
     
-    console.log(`[ChatService] Retrieved ${messages.length} messages for group ${groupId}`);
-    callback(messages);
+    // Sort messages by timestamp before returning
+    const sortedMessages = messages.sort((a, b) => a.timestamp - b.timestamp);
+    
+    console.log(`[ChatService] Retrieved ${sortedMessages.length} sorted messages for group ${groupId}`);
+    callback(sortedMessages);
   }, (error) => {
     console.error(`[ChatService] Error subscribing to messages:`, error);
+    // If subscription fails, return empty array
+    callback([]);
   });
   
   return unsubscribe;
@@ -145,5 +177,53 @@ export const getRecentMessages = async (
   } catch (error) {
     console.error('[ChatService] Error getting recent messages:', error);
     return [];
+  }
+};
+
+// Add a new function to clear all messages for a group
+export const clearChatForGroup = async (groupId: string): Promise<boolean> => {
+  try {
+    console.log(`[ChatService] Clearing all messages for group ${groupId}`);
+    
+    // Reference to the messages for this group
+    const messagesRef = ref(rtdb, `chats/${groupId}/messages`);
+    
+    // Get existing messages first
+    const snapshot = await get(messagesRef);
+    if (!snapshot.exists()) {
+      console.log(`[ChatService] No messages found for group ${groupId}`);
+      return true; // No messages to delete is still successful
+    }
+    
+    // Count how many messages we're deleting
+    let messageCount = 0;
+    snapshot.forEach(() => {
+      messageCount++;
+    });
+    console.log(`[ChatService] Found ${messageCount} messages to delete`);
+    
+    try {
+      // Instead of deleting one by one, set the entire messages node to null
+      // This is more efficient and less prone to errors
+      await set(messagesRef, null);
+      
+      // Verify the deletion was successful
+      const verifySnapshot = await get(messagesRef);
+      const success = !verifySnapshot.exists();
+      
+      if (success) {
+        console.log(`[ChatService] Successfully cleared ${messageCount} messages for group ${groupId}`);
+        return true;
+      } else {
+        console.error(`[ChatService] Failed to clear messages for group ${groupId} - messages still exist`);
+        return false;
+      }
+    } catch (deleteError) {
+      console.error('[ChatService] Error during messages deletion:', deleteError);
+      throw deleteError;
+    }
+  } catch (error) {
+    console.error('[ChatService] Error clearing chat messages:', error);
+    throw error;
   }
 };

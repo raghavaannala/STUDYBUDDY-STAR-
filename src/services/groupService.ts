@@ -411,4 +411,132 @@ export const endGroupCall = async (groupId: string): Promise<boolean> => {
     console.error('[GroupService] Error ending call:', error);
     return false;
   }
+};
+
+// Join an existing group call
+export const joinGroupCall = async (groupId: string): Promise<boolean> => {
+  try {
+    if (!auth.currentUser) {
+      console.error("[groupService] Cannot join call: No authenticated user");
+      return false;
+    }
+
+    // Get a reference to the group
+    const groupRef = ref(rtdb, `groups/${groupId}`);
+    const snapshot = await get(groupRef);
+    
+    if (!snapshot.exists()) {
+      console.error(`[groupService] Group not found: ${groupId}`);
+      return false;
+    }
+    
+    const groupData = snapshot.val();
+    
+    // Check if there's an active call
+    if (!groupData.activeCall) {
+      console.error(`[groupService] No active call in group: ${groupId}`);
+      return false;
+    }
+    
+    // Get current participants
+    const participants = groupData.activeCall.participants || [];
+    
+    // Add current user if not already in the call
+    if (!participants.includes(auth.currentUser.uid)) {
+      // Update participants array
+      const updatedParticipants = [...participants, auth.currentUser.uid];
+      
+      // Update the group data with the new participant
+      await update(ref(rtdb, `groups/${groupId}/activeCall`), {
+        participants: updatedParticipants
+      });
+      
+      console.log(`[groupService] User joined call in group: ${groupId}`);
+    } else {
+      console.log(`[groupService] User already in call for group: ${groupId}`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("[groupService] Error joining group call:", error);
+    return false;
+  }
+};
+
+// Get all public groups
+export const getPublicGroups = async (): Promise<Group[]> => {
+  try {
+    console.log('[GroupService] Getting all public groups');
+    
+    const groupsRef = ref(rtdb, 'groups');
+    const snapshot = await get(groupsRef);
+    
+    if (!snapshot.exists()) {
+      console.log('[GroupService] No groups found in database');
+      return [];
+    }
+    
+    const groups: Group[] = [];
+    
+    snapshot.forEach((childSnapshot) => {
+      const group = childSnapshot.val() as Group;
+      if (group.isPublic) {
+        groups.push(group);
+      }
+    });
+    
+    console.log(`[GroupService] Found ${groups.length} public groups`);
+    return groups;
+  } catch (error) {
+    console.error('[GroupService] Error getting public groups:', error);
+    return [];
+  }
+};
+
+// Search groups by interest/tag
+export const searchGroupsByInterest = async (interest: string): Promise<Group[]> => {
+  try {
+    console.log(`[GroupService] Searching groups with interest: ${interest}`);
+    
+    if (!interest.trim()) {
+      return await getPublicGroups();
+    }
+    
+    const groupsRef = ref(rtdb, 'groups');
+    const snapshot = await get(groupsRef);
+    
+    if (!snapshot.exists()) {
+      console.log('[GroupService] No groups found in database');
+      return [];
+    }
+    
+    const groups: Group[] = [];
+    const searchTerm = interest.toLowerCase().trim();
+    
+    snapshot.forEach((childSnapshot) => {
+      const group = childSnapshot.val() as Group;
+      
+      // Only include public groups
+      if (!group.isPublic) return;
+      
+      // Check if any tag matches
+      const hasTags = group.tags && group.tags.some(tag => 
+        tag.toLowerCase().includes(searchTerm) || searchTerm.includes(tag.toLowerCase())
+      );
+      
+      // Check if name or description matches
+      const nameMatches = group.name.toLowerCase().includes(searchTerm);
+      const descriptionMatches = group.description.toLowerCase().includes(searchTerm);
+      
+      if (hasTags || nameMatches || descriptionMatches) {
+        groups.push(group);
+      }
+    });
+    
+    console.log(`[GroupService] Found ${groups.length} groups matching interest: ${interest}`);
+    return groups;
+  } catch (error) {
+    console.error('[GroupService] Error searching groups by interest:', error);
+    return [];
+  }
 }; 
