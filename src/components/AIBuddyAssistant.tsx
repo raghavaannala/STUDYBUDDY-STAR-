@@ -7,6 +7,8 @@ import { Card } from "./ui/card";
 import { getChatResponse } from '../services/gemini';
 import { useToast } from "./ui/use-toast";
 import { useNavigate } from 'react-router-dom';
+import { useAIAware } from '@/contexts/AIAwareContext';
+import { useDeviceDetect } from '@/hooks/useMediaQuery';
 
 // Message interface
 interface Message {
@@ -47,10 +49,6 @@ const appFeatures = {
   "quiz": {
     description: "Interactive learning, AI-generated quizzes and summaries",
     pages: ["/quiz"]
-  },
-  "resume": {
-    description: "Create ATS-friendly resumes tailored to job descriptions",
-    pages: ["/buddy-resume"]
   },
   "games": {
     description: "Learn through play with interactive coding games and challenges",
@@ -119,6 +117,8 @@ export function AIBuddyAssistant() {
   const buttonRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { isAIActive, aiSuggestion, recordUserAction } = useAIAware();
+  const { isMobile } = useDeviceDetect();
 
   // Load founders info when component mounts
   useEffect(() => {
@@ -226,7 +226,7 @@ export function AIBuddyAssistant() {
       setMessages([
         { 
           role: 'assistant', 
-          content: '✨ Hello there! I\'m your magical study assistant. I can help you navigate the app, explain features, or answer academic questions! Try asking about "code help", "study groups", "resume builder" or any academic subject. ✨' 
+          content: '✨ Hello there! I\'m your magical study assistant. I can help you navigate the app, explain features, or answer academic questions! Try asking about "code help", "study groups" or any academic subject. ✨' 
         }
       ]);
       
@@ -238,6 +238,26 @@ export function AIBuddyAssistant() {
       }
     }
   }, [isOpen, messages.length]);
+
+  useEffect(() => {
+    // Hide assistant when AI is disabled
+    if (!isAIActive && isOpen) {
+      setIsOpen(false);
+    }
+  }, [isAIActive, isOpen]);
+
+  useEffect(() => {
+    // Process suggestions from other components
+    if (aiSuggestion && isAIActive && !isOpen) {
+      setIsOpen(true);
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          { role: 'assistant', content: aiSuggestion }
+        ]);
+      }, 500);
+    }
+  }, [aiSuggestion, isAIActive]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -371,11 +391,25 @@ export function AIBuddyAssistant() {
   const toggleChat = () => {
     if (isDragging) return;
     
+    if (!isAIActive) {
+      toast({
+        title: "AI Assistant is turned off",
+        description: "Turn on AI Assistant in your profile menu to use this feature.",
+        duration: 3000
+      });
+      return;
+    }
+    
     console.log("Toggle chat clicked! Current state:", { isOpen, isMinimized });
     if (isMinimized) {
       setIsMinimized(false);
     } else {
       setIsOpen(!isOpen);
+    }
+    
+    // Record interaction if recordUserAction is available
+    if (recordUserAction) {
+      recordUserAction(`assistant_${isOpen ? 'closed' : 'opened'}`);
     }
   };
 
@@ -431,8 +465,8 @@ export function AIBuddyAssistant() {
           ref={buttonRef}
           className="fixed z-50 cursor-grab active:cursor-grabbing"
           style={{
-            bottom: position.y === 0 ? '1.5rem' : 'auto',
-            right: position.x === 0 ? '1.5rem' : 'auto',
+            bottom: position.y === 0 ? (isMobile ? '5rem' : '1.5rem') : 'auto',
+            right: position.x === 0 ? (isMobile ? '1rem' : '1.5rem') : 'auto',
             top: position.y !== 0 ? `${position.y}px` : 'auto',
             left: position.x !== 0 ? `${position.x}px` : 'auto',
           }}
@@ -446,14 +480,14 @@ export function AIBuddyAssistant() {
             </div>
             
             <button
-              className="ai-buddy-button relative h-16 w-16 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-yellow-400 shadow-lg shadow-purple-500/30 hover:shadow-purple-400/50 flex items-center justify-center transition-transform duration-300 hover:scale-110 active:scale-95 z-20 cursor-pointer"
+              className="ai-buddy-button relative h-14 w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-yellow-400 shadow-lg shadow-purple-500/30 hover:shadow-purple-400/50 flex items-center justify-center transition-transform duration-300 hover:scale-110 active:scale-95 z-20 cursor-pointer"
               onClick={toggleChat}
               aria-label="Open chat assistant"
               style={{
                 filter: "drop-shadow(0 0 15px rgba(147, 51, 234, 0.5))",
               }}
             >
-              <Star className="h-9 w-9" fill="currentColor" />
+              <Star className={`${isMobile ? 'h-7 w-7' : 'h-9 w-9'}`} fill="currentColor" />
               <Sparkles className="absolute top-1 right-1 h-5 w-5 text-yellow-300 animate-pulse-slow pointer-events-none" />
               
               {[...Array(6)].map((_, i) => (
@@ -477,20 +511,22 @@ export function AIBuddyAssistant() {
               </div>
             </button>
             
-            <div className="absolute bottom-full right-0 mb-3 opacity-100 pointer-events-none animate-float-slow" style={{ animationDelay: "1.5s" }}>
-              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1.5 rounded-lg shadow-[0_5px_15px_rgba(147,51,234,0.3)] text-xs whitespace-nowrap border border-purple-400/30 animate-pulse-subtle">
-                <span className="mr-1">✨</span>
-                Click for magic help
-                <span className="ml-1">✨</span>
-                <div className="absolute bottom-0 right-4 transform translate-y-1/2 rotate-45 w-2 h-2 bg-indigo-600"></div>
+            {!isMobile && (
+              <div className="absolute bottom-full right-0 mb-3 opacity-100 pointer-events-none animate-float-slow" style={{ animationDelay: "1.5s" }}>
+                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1.5 rounded-lg shadow-[0_5px_15px_rgba(147,51,234,0.3)] text-xs whitespace-nowrap border border-purple-400/30 animate-pulse-subtle">
+                  <span className="mr-1">✨</span>
+                  Click for magic help
+                  <span className="ml-1">✨</span>
+                  <div className="absolute bottom-0 right-4 transform translate-y-1/2 rotate-45 w-2 h-2 bg-indigo-600"></div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
 
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className={`fixed ${isMobile ? 'inset-0 pt-16 pb-16 z-40' : 'bottom-6 right-6 z-50'}`}>
           {showGuide && (
             <div className="absolute inset-0 z-10 bg-black/60 rounded-lg overflow-hidden flex items-center justify-center">
               <div className="bg-gradient-to-r from-indigo-900 to-purple-900 p-4 m-4 rounded-lg border border-purple-500 max-w-xs">
@@ -534,21 +570,23 @@ export function AIBuddyAssistant() {
             </div>
           )}
           
-          <Card className="w-80 md:w-96 overflow-hidden shadow-2xl shadow-purple-500/20 border-purple-300/30">
+          <Card className={`${isMobile ? 'w-full h-full overflow-hidden rounded-none' : 'w-80 md:w-96 overflow-hidden shadow-2xl'} shadow-purple-500/20 border-purple-300/30`}>
             <div className="p-3 bg-gradient-to-r from-purple-700 to-indigo-700 flex items-center justify-between text-white">
               <div className="flex items-center gap-2">
                 <Star className="h-5 w-5 text-yellow-400" fill="currentColor" />
                 <h3 className="font-semibold">Magical Assistant</h3>
               </div>
               <div className="flex items-center gap-1">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-6 w-6 rounded-full hover:bg-purple-500/20" 
-                  onClick={minimizeChat}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
+                {!isMobile && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6 rounded-full hover:bg-purple-500/20" 
+                    onClick={minimizeChat}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -560,7 +598,7 @@ export function AIBuddyAssistant() {
               </div>
             </div>
 
-            <div className="bg-slate-900 text-slate-200 h-80 overflow-hidden p-4">
+            <div className={`bg-slate-900 text-slate-200 ${isMobile ? 'flex-grow overflow-y-auto' : 'h-80 overflow-hidden'} p-4`} style={{ height: isMobile ? 'calc(100% - 112px)' : '320px' }}>
               <ScrollArea className="h-full pr-4" ref={scrollAreaRef}>
                 <div className="space-y-4">
                   {messages.map((message, index) => (

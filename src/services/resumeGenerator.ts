@@ -1,12 +1,5 @@
-/**
- * Resume Generator Service
- * This service uses the Gemini API to generate ATS-friendly resumes
- * based on user inputs and optimize them for specific job positions.
- */
+import * as directApi from './directGemini';
 
-import { ComplexityAnalysis } from "./codeDiplomate";
-
-// Define the resume data interface
 export interface ResumeData {
   fullName: string;
   email: string;
@@ -14,7 +7,6 @@ export interface ResumeData {
   location: string;
   linkedIn?: string;
   portfolio?: string;
-  github?: string;
   summary: string;
   skills: string[];
   experiences: {
@@ -24,7 +16,6 @@ export interface ResumeData {
     startDate: string;
     endDate: string;
     description: string;
-    achievements: string[];
   }[];
   education: {
     degree: string;
@@ -32,374 +23,286 @@ export interface ResumeData {
     location: string;
     graduationDate: string;
     gpa?: string;
-    achievements?: string[];
+    achievements?: string;
   }[];
+  certifications?: string[];
   projects?: {
     name: string;
     description: string;
     technologies: string[];
     link?: string;
   }[];
-  certifications?: {
-    name: string;
-    issuer: string;
-    date: string;
-  }[];
 }
 
-// Define the response interface
 export interface ResumeGenerationResponse {
   content: string;
-  suggestedImprovements: string[];
-  atsScore: number;
-  keywordMatches: string[];
+  suggestions: string[];
+  jobMatch: number; // 0-100 score
+  keywords: {
+    matched: string[];
+    missing: string[];
+  };
 }
 
+export interface ResumeTemplate {
+  id: string;
+  name: string;
+  description: string;
+  thumbnail: string;
+  isPremium: boolean;
+}
+
+// Available resume templates
+export const resumeTemplates: ResumeTemplate[] = [
+  {
+    id: 'minimal',
+    name: 'Minimal',
+    description: 'Clean, simple design with excellent ATS compatibility',
+    thumbnail: '/resume-templates/minimal.png',
+    isPremium: false
+  },
+  {
+    id: 'professional',
+    name: 'Professional',
+    description: 'Traditional format preferred by established companies',
+    thumbnail: '/resume-templates/professional.png',
+    isPremium: false
+  },
+  {
+    id: 'modern',
+    name: 'StudyBuddy Purple',
+    description: 'Contemporary design with the StudyBuddy color scheme',
+    thumbnail: '/resume-templates/modern.png',
+    isPremium: false
+  },
+  {
+    id: 'tech',
+    name: 'Tech Focused',
+    description: 'Highlights technical skills with code-inspired design',
+    thumbnail: '/resume-templates/tech.png',
+    isPremium: true
+  },
+  {
+    id: 'executive',
+    name: 'CodeDiploMate Premium',
+    description: 'Sophisticated layout with AI-optimized design',
+    thumbnail: '/resume-templates/executive.png',
+    isPremium: true
+  }
+];
+
 /**
- * Generate an ATS-friendly resume based on user data and target job
- * @param resumeData User's resume information
- * @param jobDescription Target job description to tailor the resume for
- * @returns Generated resume content, improvements, and ATS score
+ * Generate an ATS-friendly resume based on user data and job description
  */
 export async function generateAtsResume(
   resumeData: ResumeData,
-  jobDescription: string
+  jobDescription: string,
+  templateId: string = 'minimal'
 ): Promise<ResumeGenerationResponse> {
   try {
-    console.log('Generating ATS-friendly resume...');
-    
-    // Create a prompt for the AI to generate the resume
-    const prompt = buildResumePrompt(resumeData, jobDescription);
-    
-    // Call the Gemini API directly
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': import.meta.env.VITE_GEMINI_API_KEY || '',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 4096,
-          responseMimeType: "text/plain",
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.candidates && data.candidates.length > 0 && 
-        data.candidates[0].content && 
-        data.candidates[0].content.parts && 
-        data.candidates[0].content.parts.length > 0) {
-      
-      const result = data.candidates[0].content.parts[0].text;
-      
-      // Parse the AI response to extract resume content, suggestions, and score
-      return parseAiResponse(result);
-    } else {
-      throw new Error('Invalid API response format');
-    }
-  } catch (error) {
-    console.error('Error generating resume:', error);
-    throw error;
-  }
-}
+    // Prepare the prompt for the AI
+    const prompt = `
+As an expert resume writer, create an ATS-friendly resume for the following person, tailored to the job description.
 
-/**
- * Optimize an existing resume for ATS
- * @param resumeContent Current resume content
- * @param jobDescription Target job description
- * @returns Optimized resume with suggestions
- */
-export async function optimizeResumeForAts(
-  resumeContent: string,
-  jobDescription: string
-): Promise<ResumeGenerationResponse> {
-  try {
-    const prompt = `I have the following resume:
+CANDIDATE INFORMATION:
+Full Name: ${resumeData.fullName}
+Contact: ${resumeData.email} | ${resumeData.phone} | ${resumeData.location}
+${resumeData.linkedIn ? `LinkedIn: ${resumeData.linkedIn}` : ''}
+${resumeData.portfolio ? `Portfolio: ${resumeData.portfolio}` : ''}
 
-${resumeContent}
+Summary:
+${resumeData.summary}
 
-And I want to apply for this job:
+Skills:
+${resumeData.skills.join(', ')}
 
-${jobDescription}
+Experience:
+${resumeData.experiences.map(exp => 
+  `- ${exp.title} at ${exp.company}, ${exp.location} (${exp.startDate} - ${exp.endDate})
+   ${exp.description}`
+).join('\n\n')}
 
-Please optimize my resume for ATS (Applicant Tracking Systems) by:
-1. Reformatting it to be ATS-friendly with a clean structure
-2. Incorporating relevant keywords from the job description
-3. Highlighting my most relevant qualifications
-4. Removing any elements that might confuse ATS systems
-5. Adding any missing sections that would improve my chances
+Education:
+${resumeData.education.map(edu => 
+  `- ${edu.degree} from ${edu.institution}, ${edu.location} (${edu.graduationDate})
+   ${edu.gpa ? `GPA: ${edu.gpa}` : ''}
+   ${edu.achievements ? `Achievements: ${edu.achievements}` : ''}`
+).join('\n\n')}
 
-Please respond in the following structured format:
----RESUME CONTENT---
-[The optimized resume content]
----END RESUME CONTENT---
+${resumeData.certifications && resumeData.certifications.length > 0 ? 
+  `Certifications:
+${resumeData.certifications.join('\n')}` : ''}
 
----SUGGESTED IMPROVEMENTS---
-[Bullet points of suggested improvements]
----END SUGGESTED IMPROVEMENTS---
-
----ATS SCORE---
-[A score from 1-100 indicating how well the resume would perform with ATS]
----END ATS SCORE---
-
----KEYWORD MATCHES---
-[List of keywords from the job description that are now included in the resume]
----END KEYWORD MATCHES---`;
-
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': import.meta.env.VITE_GEMINI_API_KEY || '',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 4096,
-          responseMimeType: "text/plain",
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.candidates && data.candidates.length > 0 && 
-        data.candidates[0].content && 
-        data.candidates[0].content.parts && 
-        data.candidates[0].content.parts.length > 0) {
-      
-      const result = data.candidates[0].content.parts[0].text;
-      return parseAiResponse(result);
-    } else {
-      throw new Error('Invalid API response format');
-    }
-  } catch (error) {
-    console.error('Error optimizing resume:', error);
-    throw error;
-  }
-}
-
-/**
- * Generate personalized job-specific content for a resume
- * @param resumeData User's resume information
- * @param jobDescription Target job description
- * @returns Generated bullet points for specific job applications
- */
-export async function generateJobSpecificContent(
-  resumeData: ResumeData,
-  jobDescription: string
-): Promise<string[]> {
-  try {
-    const prompt = `Based on my background and the job description, generate 5-7 tailored bullet points highlighting my most relevant experiences and skills for this specific job.
-
-My background:
-${JSON.stringify(resumeData, null, 2)}
-
-Job Description:
-${jobDescription}
-
-Please focus on quantifiable achievements and skills that directly relate to the job requirements. Format each bullet point to be concise, impactful, and begin with a strong action verb.`;
-
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': import.meta.env.VITE_GEMINI_API_KEY || '',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.9,
-          topK: 40,
-          maxOutputTokens: 2048,
-          responseMimeType: "text/plain",
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.candidates && data.candidates.length > 0 && 
-        data.candidates[0].content && 
-        data.candidates[0].content.parts && 
-        data.candidates[0].content.parts.length > 0) {
-      
-      const result = data.candidates[0].content.parts[0].text;
-      
-      // Split by bullet points and clean up
-      return result
-        .split('\n')
-        .filter(line => line.trim().startsWith('-') || line.trim().startsWith('•'))
-        .map(line => line.replace(/^[•-]\s*/, '').trim())
-        .filter(line => line.length > 0);
-    } else {
-      throw new Error('Invalid API response format');
-    }
-  } catch (error) {
-    console.error('Error generating job-specific content:', error);
-    throw error;
-  }
-}
-
-/**
- * Build the prompt for the Gemini API to generate a resume
- * @param data User resume data
- * @param jobDescription Target job description
- * @returns Formatted prompt string
- */
-function buildResumePrompt(data: ResumeData, jobDescription: string): string {
-  return `Generate an ATS-friendly resume based on the following information and job description:
-
-PERSONAL INFO:
-Name: ${data.fullName}
-Email: ${data.email}
-Phone: ${data.phone}
-Location: ${data.location}
-${data.linkedIn ? `LinkedIn: ${data.linkedIn}` : ''}
-${data.portfolio ? `Portfolio: ${data.portfolio}` : ''}
-${data.github ? `GitHub: ${data.github}` : ''}
-
-SUMMARY:
-${data.summary}
-
-SKILLS:
-${data.skills.join(', ')}
-
-WORK EXPERIENCE:
-${data.experiences.map(exp => `
-Title: ${exp.title}
-Company: ${exp.company}
-Location: ${exp.location}
-Duration: ${exp.startDate} - ${exp.endDate}
-Description: ${exp.description}
-Achievements:
-${exp.achievements.map(a => `- ${a}`).join('\n')}
-`).join('\n')}
-
-EDUCATION:
-${data.education.map(edu => `
-Degree: ${edu.degree}
-Institution: ${edu.institution}
-Location: ${edu.location}
-Graduation Date: ${edu.graduationDate}
-${edu.gpa ? `GPA: ${edu.gpa}` : ''}
-${edu.achievements?.length ? `Achievements:\n${edu.achievements.map(a => `- ${a}`).join('\n')}` : ''}
-`).join('\n')}
-
-${data.projects?.length ? `PROJECTS:
-${data.projects.map(proj => `
-Name: ${proj.name}
-Description: ${proj.description}
-Technologies: ${proj.technologies.join(', ')}
-${proj.link ? `Link: ${proj.link}` : ''}
-`).join('\n')}` : ''}
-
-${data.certifications?.length ? `CERTIFICATIONS:
-${data.certifications.map(cert => `
-Name: ${cert.name}
-Issuer: ${cert.issuer}
-Date: ${cert.date}
-`).join('\n')}` : ''}
+${resumeData.projects && resumeData.projects.length > 0 ? 
+  `Projects:
+${resumeData.projects.map(proj => 
+  `- ${proj.name}: ${proj.description}
+   Technologies: ${proj.technologies.join(', ')}
+   ${proj.link ? `Link: ${proj.link}` : ''}`
+).join('\n\n')}` : ''}
 
 JOB DESCRIPTION:
 ${jobDescription}
 
-Please create an ATS-friendly resume that:
-1. Follows a clean, standard format that will parse well in ATS systems
-2. Tailors the skills and experience to match the job description
-3. Uses relevant keywords from the job description
-4. Quantifies achievements when possible
-5. Is concise and easy to scan
+INSTRUCTIONS:
+1. Create an ATS-friendly resume that will pass automated screening systems.
+2. Format the resume in a clean, professional layout using the "${getTemplateName(templateId)}" template style.
+3. Highlight relevant skills and experience that match the job description.
+4. Use action verbs and quantify achievements where possible.
+5. Optimize the content with relevant keywords from the job description.
+6. Keep the resume concise and within 1-2 pages.
+7. Return the formatted resume in well-structured text format.
+8. Also provide:
+   - A list of 3-5 suggestions for improvement
+   - A job match score (0-100)
+   - A list of keywords from the job that were matched in the resume
+   - A list of important keywords from the job that are missing in the resume
 
-Format your response as follows:
+OUTPUT FORMAT:
+Format your response as a JSON with the following structure:
+{
+  "content": "The full resume text with proper formatting",
+  "suggestions": ["Suggestion 1", "Suggestion 2", ...],
+  "jobMatch": 85,
+  "keywords": {
+    "matched": ["keyword1", "keyword2", ...],
+    "missing": ["keyword3", "keyword4", ...]
+  }
+}
+`;
 
----RESUME CONTENT---
-[The resume content in plain text format, properly formatted for ATS systems]
----END RESUME CONTENT---
-
----SUGGESTED IMPROVEMENTS---
-[Bullet points of suggested improvements to make the resume even better]
----END SUGGESTED IMPROVEMENTS---
-
----ATS SCORE---
-[A score from 1-100 indicating how well the resume would perform with ATS]
----END ATS SCORE---
-
----KEYWORD MATCHES---
-[List of keywords from the job description that are included in the resume]
----END KEYWORD MATCHES---`;
+    // Call the Gemini API
+    const response = await directApi.generateCode(prompt);
+    
+    try {
+      // Parse the response to extract the JSON
+      const jsonMatch = response.code.match(/```json\n([\s\S]*?)\n```/) || 
+                        response.code.match(/({[\s\S]*})/) ||
+                        response.code.match(/(^\{[\s\S]*\}$)/m);
+                        
+      if (jsonMatch && jsonMatch[1]) {
+        const parsedResponse = JSON.parse(jsonMatch[1]);
+        return parsedResponse as ResumeGenerationResponse;
+      } else {
+        // If JSON parsing fails, return a basic response with the content
+        return {
+          content: response.code,
+          suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
+          jobMatch: 70,
+          keywords: {
+            matched: [],
+            missing: []
+          }
+        };
+      }
+    } catch (error) {
+      console.error("Error parsing resume response:", error);
+      return {
+        content: response.code,
+        suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
+        jobMatch: 70,
+        keywords: {
+          matched: [],
+          missing: []
+        }
+      };
+    }
+  } catch (error) {
+    console.error("Error generating resume:", error);
+    throw new Error("Failed to generate resume. Please try again.");
+  }
 }
 
 /**
- * Parse the AI response to extract structured data
- * @param responseText The raw text response from Gemini API
- * @returns Structured resume generation response
+ * Optimize an existing resume for ATS based on a job description
  */
-function parseAiResponse(responseText: string): ResumeGenerationResponse {
-  // Extract resume content
-  const contentMatch = responseText.match(/---RESUME CONTENT---([\s\S]*?)---END RESUME CONTENT---/);
-  const content = contentMatch ? contentMatch[1].trim() : '';
+export async function optimizeResumeForAts(
+  existingResume: string,
+  jobDescription: string
+): Promise<ResumeGenerationResponse> {
+  try {
+    // Prepare the prompt for the AI
+    const prompt = `
+As an expert resume optimizer, improve the following resume to make it more ATS-friendly and tailored to the job description.
 
-  // Extract suggested improvements
-  const improvementMatch = responseText.match(/---SUGGESTED IMPROVEMENTS---([\s\S]*?)---END SUGGESTED IMPROVEMENTS---/);
-  const improvementText = improvementMatch ? improvementMatch[1].trim() : '';
-  const suggestedImprovements = improvementText
-    .split('\n')
-    .map(line => line.replace(/^-\s*/, '').trim())
-    .filter(line => line.length > 0);
+EXISTING RESUME:
+${existingResume}
 
-  // Extract ATS score
-  const scoreMatch = responseText.match(/---ATS SCORE---([\s\S]*?)---END ATS SCORE---/);
-  const scoreText = scoreMatch ? scoreMatch[1].trim() : '75';
-  const atsScore = parseInt(scoreText, 10) || 75;
+JOB DESCRIPTION:
+${jobDescription}
 
-  // Extract keyword matches
-  const keywordMatch = responseText.match(/---KEYWORD MATCHES---([\s\S]*?)---END KEYWORD MATCHES---/);
-  const keywordText = keywordMatch ? keywordMatch[1].trim() : '';
-  const keywordMatches = keywordText
-    .split('\n')
-    .map(line => line.replace(/^-\s*/, '').trim())
-    .filter(line => line.length > 0);
+INSTRUCTIONS:
+1. Optimize the resume to pass ATS screening systems.
+2. Maintain the original structure but enhance content and formatting.
+3. Incorporate relevant keywords from the job description.
+4. Improve bullet points with action verbs and quantifiable achievements.
+5. Keep the resume concise and within 1-2 pages.
+6. Return the formatted resume in well-structured text format.
+7. Also provide:
+   - A list of 3-5 suggestions for further improvement
+   - A job match score (0-100)
+   - A list of keywords from the job that were matched in the resume
+   - A list of important keywords from the job that are missing in the resume
 
-  return {
-    content,
-    suggestedImprovements,
-    atsScore,
-    keywordMatches
-  };
+OUTPUT FORMAT:
+Format your response as a JSON with the following structure:
+{
+  "content": "The full optimized resume text with proper formatting",
+  "suggestions": ["Suggestion 1", "Suggestion 2", ...],
+  "jobMatch": 85,
+  "keywords": {
+    "matched": ["keyword1", "keyword2", ...],
+    "missing": ["keyword3", "keyword4", ...]
+  }
+}
+`;
+
+    // Call the Gemini API
+    const response = await directApi.generateCode(prompt);
+    
+    try {
+      // Parse the response to extract the JSON
+      const jsonMatch = response.code.match(/```json\n([\s\S]*?)\n```/) || 
+                        response.code.match(/({[\s\S]*})/) ||
+                        response.code.match(/(^\{[\s\S]*\}$)/m);
+                        
+      if (jsonMatch && jsonMatch[1]) {
+        const parsedResponse = JSON.parse(jsonMatch[1]);
+        return parsedResponse as ResumeGenerationResponse;
+      } else {
+        // If JSON parsing fails, return a basic response with the content
+        return {
+          content: response.code,
+          suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
+          jobMatch: 70,
+          keywords: {
+            matched: [],
+            missing: []
+          }
+        };
+      }
+    } catch (error) {
+      console.error("Error parsing resume optimization response:", error);
+      return {
+        content: response.code,
+        suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
+        jobMatch: 70,
+        keywords: {
+          matched: [],
+          missing: []
+        }
+      };
+    }
+  } catch (error) {
+    console.error("Error optimizing resume:", error);
+    throw new Error("Failed to optimize resume. Please try again.");
+  }
+}
+
+/**
+ * Helper to get template name from ID
+ */
+function getTemplateName(templateId: string): string {
+  const template = resumeTemplates.find(t => t.id === templateId);
+  return template ? template.name : 'Minimal';
 } 

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X, User } from 'lucide-react';
+import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X, User, LogOut } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -143,6 +143,8 @@ const Groups = () => {
   const [userProfiles, setUserProfiles] = useState<Record<string, userService.UserProfile>>({});
   // Add a loading state if missing
   const [loading, setLoading] = useState(false);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [groupToLeave, setGroupToLeave] = useState<GroupUI | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -209,6 +211,7 @@ const Groups = () => {
         ...group,
         privateId: group.id.substring(0, 8),
         interest: group.tags ? group.tags.join(', ') : '',
+        code: group.code, // Include the 6-digit join code
         activeCall: group.activeCall ? {
           initiator: group.activeCall.initiatedBy,
           participants: group.activeCall.participants,
@@ -283,6 +286,10 @@ const Groups = () => {
           description: "Group created successfully",
         });
         
+        // Set the group code for sharing and show the success dialog
+        setCreatedGroupId(newGroup.code);
+        setShowSuccessDialog(true);
+        
         // Reset form
         setName('');
         setDescription('');
@@ -290,8 +297,8 @@ const Groups = () => {
         setTags([]);
         setTagInput('');
         
-        // Navigate back to groups list
-        navigate('/groups');
+        // Do not navigate away so user can see the success dialog with the code
+        // navigate('/groups');
         
         // Refresh groups
         fetchGroups();
@@ -314,8 +321,8 @@ const Groups = () => {
     e.preventDefault();
     
     // Validate input
-    if (!joinCode || joinCode.length < 4) {
-      setJoinError('Please enter a valid code (at least 4 characters)');
+    if (!joinCode || joinCode.length !== 6 || !/^\d{6}$/.test(joinCode)) {
+      setJoinError('Please enter a valid 6-digit code');
       return;
     }
     
@@ -1283,7 +1290,7 @@ Note: This is a simplified example. For more complex responses, try again later 
     navigator.clipboard.writeText(code);
     toast({
       title: "Copied!",
-      description: "Join code copied to clipboard.",
+      description: "6-digit join code copied to clipboard. Share this with your friends to let them join your group.",
     });
   };
 
@@ -1672,6 +1679,57 @@ Note: This is a simplified example. For more complex responses, try again later 
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
+  const handleLeaveGroup = async (group: GroupUI) => {
+    if (!user) return;
+    
+    // Set the group to leave and show the confirmation dialog
+    setGroupToLeave(group);
+    setShowLeaveDialog(true);
+  };
+
+  const confirmLeaveGroup = async () => {
+    if (!groupToLeave || !user) return;
+    
+    try {
+      toast({
+        title: "Leaving Group",
+        description: "Please wait...",
+      });
+      
+      const success = await groupService.leaveGroup(groupToLeave.id);
+      
+      if (success) {
+        toast({
+          title: "Success",
+          description: "You have left the group successfully",
+        });
+        
+        // Close the chat dialog
+        setSelectedGroup(null);
+        
+        // Close the confirmation dialog
+        setShowLeaveDialog(false);
+        setGroupToLeave(null);
+        
+        // Refresh the groups list
+        fetchGroups();
+      } else {
+        throw new Error("Failed to leave the group");
+      }
+    } catch (error) {
+      console.error("Error leaving group:", error);
+      toast({
+        title: "Error",
+        description: "Failed to leave the group. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Close the confirmation dialog
+      setShowLeaveDialog(false);
+      setGroupToLeave(null);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1862,15 +1920,29 @@ Note: This is a simplified example. For more complex responses, try again later 
                       </form>
                     ) : (
                       <div>
-                        <h3 className="text-xl font-semibold mb-2">{group.name}</h3>
+                        <h3 className="text-xl font-semibold mb-1">{group.name}</h3>
+                        {group.code && (
+                          <div className="mb-2 flex items-center">
+                            <span className="bg-primary/10 text-primary text-sm rounded px-2 py-1 font-mono tracking-wider">
+                              Join Code: {group.code}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 ml-1"
+                              onClick={() => copyJoinCode(group.code || '')}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 012-2h4a2 2 0 012 2M8 5a2 2 0 012-2h4a2 2 0 012 2v0a2 2 0 01-2 2h-4a2 2 0 01-2-2v0z" />
+                              </svg>
+                            </Button>
+                          </div>
+                        )}
                         <p className="text-muted-foreground mb-4">{group.description}</p>
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-1">
                               {group.members.length} members
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              ID: {group.privateId}
                             </span>
                             <span className="text-xs bg-blue-500/10 text-blue-500 rounded-full px-2 py-1">
                               Created by: {userProfiles[group.createdBy]?.displayName || 'Loading...'}
@@ -1998,15 +2070,29 @@ Note: This is a simplified example. For more complex responses, try again later 
                       </form>
                     ) : (
                       <div>
-                        <h3 className="text-xl font-semibold mb-2">{group.name}</h3>
+                        <h3 className="text-xl font-semibold mb-1">{group.name}</h3>
+                        {group.code && (
+                          <div className="mb-2 flex items-center">
+                            <span className="bg-primary/10 text-primary text-sm rounded px-2 py-1 font-mono tracking-wider">
+                              Join Code: {group.code}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 ml-1"
+                              onClick={() => copyJoinCode(group.code || '')}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 012-2h4a2 2 0 012 2M8 5a2 2 0 012-2h4a2 2 0 012 2v0a2 2 0 01-2 2h-4a2 2 0 01-2-2v0z" />
+                              </svg>
+                            </Button>
+                          </div>
+                        )}
                         <p className="text-muted-foreground mb-4">{group.description}</p>
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs bg-primary/10 text-primary rounded-full px-2 py-1">
                               {group.members.length} members
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              ID: {group.privateId}
                             </span>
                             <span className="text-xs bg-blue-500/10 text-blue-500 rounded-full px-2 py-1">
                               Created by: {userProfiles[group.createdBy]?.displayName || 'Loading...'}
@@ -2168,21 +2254,26 @@ Note: This is a simplified example. For more complex responses, try again later 
                 
                 <form onSubmit={handleJoinGroup} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="joinCode">Group Code</Label>
+                    <Label htmlFor="joinCode">6-Digit Group Code</Label>
                     <div className="relative">
                       <Input
                         id="joinCode"
-                        placeholder="Enter 6-character code (e.g., AB12CD)"
+                        placeholder="Enter 6-digit code (e.g., 123456)"
                         value={joinCode}
                         onChange={(e) => {
-                          setJoinCode(e.target.value.toUpperCase());
+                          // Only allow numeric characters
+                          const numericValue = e.target.value.replace(/\D/g, '');
+                          setJoinCode(numericValue);
                           setJoinError('');
                         }}
-                        className="pr-10 tracking-widest font-mono text-center text-lg uppercase"
+                        className="pr-10 tracking-widest font-mono text-center text-lg"
                         maxLength={6}
                         autoFocus
                         required
                         disabled={joinLoading}
+                        type="number"
+                        pattern="[0-9]*"
+                        inputMode="numeric"
                       />
                       {joinCode && !joinLoading && (
                         <button 
@@ -2213,7 +2304,7 @@ Note: This is a simplified example. For more complex responses, try again later 
                     <Button 
                       type="submit" 
                       className="flex-1"
-                      disabled={joinCode.length < 4 || joinLoading}
+                      disabled={joinCode.length !== 6 || joinLoading}
                     >
                       {joinLoading ? (
                         <>
@@ -2283,6 +2374,15 @@ Note: This is a simplified example. For more complex responses, try again later 
                   className="flex items-center gap-1 ml-2"
                 >
                   Clear Chat
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleLeaveGroup(selectedGroup)}
+                  className="flex items-center gap-1 ml-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 border-red-500/20"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Leave Group
                 </Button>
               </div>
               <Button 
@@ -2532,7 +2632,8 @@ Note: This is a simplified example. For more complex responses, try again later 
             
             <div className="flex items-center justify-center gap-2 mb-6">
               <div className="bg-muted p-3 rounded-lg text-center font-mono text-lg tracking-widest">
-                {createdGroupId || 'CODE MISSING'}
+                <div className="text-sm font-medium mb-1">6-DIGIT CODE:</div>
+                <div className="text-2xl text-primary font-bold">{createdGroupId || 'CODE MISSING'}</div>
               </div>
               <Button
                 size="sm"
@@ -2566,7 +2667,7 @@ Note: This is a simplified example. For more complex responses, try again later 
                     navigate('/groups');
                   }
                   // Get the newly created group and open its chat
-                  const newGroup = groups.find(g => g.privateId === createdGroupId);
+                  const newGroup = groups.find(g => g.code === createdGroupId);
                   if (newGroup) {
                     setSelectedGroup(newGroup);
                     loadChatMessages(newGroup.id);
@@ -2737,6 +2838,43 @@ Note: This is a simplified example. For more complex responses, try again later 
                   </Card>
                 ))
               )}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Leave Group Confirmation Dialog */}
+      {showLeaveDialog && groupToLeave && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="p-6 max-w-md w-full">
+            <div className="text-center mb-4">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-100 text-red-500 mb-4">
+                <LogOut className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Leave Group?</h3>
+              <p className="text-muted-foreground mb-4">
+                Are you sure you want to leave the group "{groupToLeave.name}"? You'll need a new invite code to rejoin.
+              </p>
+            </div>
+            
+            <div className="flex justify-between gap-4">
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => {
+                  setShowLeaveDialog(false);
+                  setGroupToLeave(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={confirmLeaveGroup}
+              >
+                Leave Group
+              </Button>
             </div>
           </Card>
         </div>

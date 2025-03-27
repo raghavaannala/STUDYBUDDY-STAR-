@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Users, Gamepad, BookOpen, FileText } from 'lucide-react';
+import { ArrowRight, Users, Gamepad, BookOpen, FileText, Code } from 'lucide-react';
 import FadeIn from '../animations/FadeIn';
 import GlassMorphCard from '../ui/GlassMorphCard';
 import { useNavigate } from 'react-router-dom';
@@ -373,21 +373,8 @@ const Hero = () => {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md"></div>
               <div className="relative z-10 flex items-center">
-                <span className="mr-2">👨‍💻</span>
-                <span>Try CodeDiploMate</span>
-                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </div>
-            </Button>
-            
-            <Button 
-              size="lg" 
-              className="backdrop-blur-sm bg-gradient-to-br from-purple-600/90 to-indigo-700/90 hover:from-purple-500 hover:to-indigo-600 text-white border border-purple-400/30 shadow-[0_4px_20px_rgba(147,51,234,0.2)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.4)] transform hover:translate-y-[-2px] transition-all duration-300"
-              onClick={() => navigate('/resume')}
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md"></div>
-              <div className="relative z-10 flex items-center">
-                <FileText className="mr-2 h-4 w-4" />
-                <span>BuddyResume Builder</span>
+                <Code className="mr-2 h-4 w-4" />
+                <span>CodeDiploMate</span>
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Button>
@@ -430,6 +417,22 @@ const Hero = () => {
                 <span>Coding Games</span>
               </div>
             </Button>
+            
+            <Button 
+              size="lg" 
+              variant="outline"
+              className="backdrop-blur-sm bg-gradient-to-br from-purple-600/20 to-indigo-700/20 border border-purple-500/30 text-purple-200 hover:bg-gradient-to-br hover:from-purple-500/30 hover:to-indigo-600/30 hover:text-purple-100 shadow-[0_4px_20px_rgba(147,51,234,0.2)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.3)] transform hover:translate-y-[-3px] transition-all duration-300 group animate-pulse-subtle"
+              onClick={() => navigate('/resume')}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md"></div>
+              <div className="relative z-10 flex items-center">
+                <FileText className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                <span className="relative">
+                  <span className="group-hover:animate-pulse">ResumeBuddy</span>
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-purple-500 to-indigo-400 group-hover:w-full transition-all duration-300"></span>
+                </span>
+              </div>
+            </Button>
           </div>
         </div>
 
@@ -459,14 +462,6 @@ const Hero = () => {
                     </li>
                     <li className="flex items-start">
                       <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
-                      <span><strong className="text-purple-200">BuddyResume:</strong> AI-powered resume builder with ATS optimization</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
-                      <span><strong className="text-purple-200">Time/Space Analysis:</strong> Advanced complexity evaluation</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
                       <span><strong className="text-purple-200">Study Modules:</strong> Interactive learning resources</span>
                     </li>
                     <li className="flex items-start">
@@ -476,6 +471,10 @@ const Hero = () => {
                     <li className="flex items-start">
                       <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
                       <span><strong className="text-purple-200">Gamified Learning:</strong> Coding challenges and quizzes</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
+                      <span><strong className="text-purple-200">ResumeBuddy:</strong> AI-powered ATS-friendly resume generator</span>
                     </li>
                   </ul>
                 </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, BookOpen, Code, Search, Sparkles, Users, User, Settings, LogOut, Home, MessageSquare, Gamepad, FileText } from 'lucide-react';
+import { Menu, X, BookOpen, Code, Search, Sparkles, Users, User, Settings, LogOut, Home, MessageSquare, Gamepad, FileText, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SignInButton } from "@/components/auth/SignInButton";
@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import ProfileDialog from '@/components/auth/ProfileDialog';
+import { useAIAware } from '@/contexts/AIAwareContext';
+import { useDeviceDetect } from '@/hooks/useMediaQuery';
 
 const NavbarLink = ({ 
   children, 
@@ -52,6 +54,8 @@ export default function Navbar() {
   const location = useLocation();
   const { signOut } = useAuth();
   const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const { isAIActive, toggleAI } = useAIAware();
+  const { isMobile } = useDeviceDetect();
 
   const founders = [
     { id: 1, name: 'Raghava' },
@@ -165,6 +169,11 @@ export default function Navbar() {
       icon: <Code className="h-4 w-4 mr-2" />
     },
     {
+      name: "ResumeBuddy",
+      path: "/resume",
+      icon: <FileText className="h-4 w-4 mr-2" />
+    },
+    {
       name: "Groups",
       path: "/groups",
       icon: <Users className="h-4 w-4 mr-2" />
@@ -178,11 +187,6 @@ export default function Navbar() {
       name: "Games",
       path: "/games",
       icon: <Gamepad className="h-4 w-4 mr-2" />
-    },
-    {
-      name: "BuddyResume",
-      path: "/resume",
-      icon: <FileText className="h-4 w-4 mr-2" />
     }
   ];
 
@@ -204,26 +208,38 @@ export default function Navbar() {
             onClick={() => navigate('/')} 
             className="flex items-center space-x-2"
           >
-            <div className="relative w-8 h-8 text-yellow-500">
+            <div className="relative w-8 h-8 md:w-10 md:h-10 text-yellow-500">
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
                 viewBox="0 0 24 24" 
                 fill="currentColor" 
-                className="w-8 h-8 text-yellow-500 animate-pulse-slow"
+                className="w-full h-full text-yellow-500 animate-pulse-slow"
               >
                 <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
               </svg>
             </div>
-            <div className="hidden md:block">
+            <div className={`${isMobile ? 'block text-lg' : 'hidden md:block'}`}>
               <span 
                 className="font-bold text-xl sm:text-2xl bg-gradient-to-r from-blue-400 to-yellow-500 bg-clip-text text-transparent"
               >
-                StudyBuddy
+                {isMobile ? 'SB' : 'StudyBuddy'}
               </span>
             </div>
           </button>
 
-          {/* Desktop menu */}
+          {/* AI Assistant Indicator - Only show on larger screens */}
+          <div className="hidden lg:flex items-center mr-3">
+            <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full ${isAIActive 
+              ? 'bg-gradient-to-r from-purple-600/20 to-indigo-600/20 border border-purple-500/30' 
+              : 'bg-slate-800/80 border border-slate-700/50'}`}>
+              <div className={`w-2 h-2 rounded-full ${isAIActive ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+              <span className={`text-xs ${isAIActive ? 'text-purple-200' : 'text-slate-400'}`}>
+                AI {isAIActive ? 'Active' : 'Disabled'}
+              </span>
+            </div>
+          </div>
+
+          {/* Desktop menu - Hide on mobile */}
           <div className="hidden md:flex items-center space-x-4">
             {navLinks.map((link, index) => (
               <NavbarLink 
@@ -240,16 +256,17 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button - Bigger touch target */}
           <div className="flex items-center md:hidden">
             <button 
               onClick={toggleMobileMenu} 
-              className="p-2 text-gray-400 hover:text-white focus:outline-none"
+              className="p-3 text-gray-400 hover:text-white focus:outline-none rounded-full active:bg-slate-800/50 transition-colors"
+              aria-label="Toggle menu"
             >
               {isMobileMenuOpen ? (
-                <X className="h-6 w-6" />
+                <X className="h-7 w-7" />
               ) : (
-                <Menu className="h-6 w-6" />
+                <Menu className="h-7 w-7" />
               )}
             </button>
           </div>
@@ -290,6 +307,10 @@ export default function Navbar() {
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={toggleAI}>
+                      <Bot className="mr-2 h-4 w-4" />
+                      <span>AI Assistant: {isAIActive ? 'On' : 'Off'}</span>
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
@@ -321,7 +342,8 @@ export default function Navbar() {
       >
         <div className="px-4 py-4 max-h-[80vh] overflow-y-auto">
           <div className="flex flex-col space-y-3">
-            {navLinks.map((link, index) => (
+            {/* Only show most important navigation items on mobile */}
+            {navLinks.slice(0, 4).map((link, index) => (
               <NavbarLink 
                 key={index}
                 to={link.path}
@@ -329,63 +351,75 @@ export default function Navbar() {
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                 }}
-                className="py-3 px-4 bg-slate-800/50 rounded-lg hover:bg-purple-500/20 active:bg-purple-500/30"
+                className="py-4 px-5 bg-slate-800/50 rounded-lg hover:bg-purple-500/20 active:bg-purple-500/30 text-lg"
               >
                 <span className="flex items-center">
                   {link.icon}
-                  <span className="ml-2 font-medium">{link.name}</span>
+                  <span className="ml-3 font-medium">{link.name}</span>
                 </span>
               </NavbarLink>
             ))}
             {user ? (
-              <div className="mt-2 pt-2 border-t border-gray-700">
+              <div className="mt-6 pt-6 border-t border-gray-700">
                 <div className="flex items-center space-x-3 px-3 py-2">
-                  <Avatar className="h-8 w-8 rounded-full border-2 border-yellow-500">
+                  <Avatar className="h-12 w-12 rounded-full border-2 border-yellow-500">
                     <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
                     <AvatarFallback className="bg-yellow-500 text-background">
                       {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium text-white">{user.displayName}</span>
+                    <span className="text-base font-medium text-white">{user.displayName}</span>
                     <span className="text-xs text-gray-400">{user.email}</span>
                   </div>
                 </div>
-                <div className="flex flex-col space-y-2 mt-2">
+                <div className="flex flex-col space-y-3 mt-4">
                   <Button 
                     variant="ghost" 
-                    size="sm"
-                    className="justify-start"
+                    size="lg"
+                    className="justify-start py-4 text-base"
                     onClick={() => {
                       navigate('/profile');
                       setIsMobileMenuOpen(false);
                     }}
                   >
-                    <User className="mr-2 h-4 w-4" />
+                    <User className="mr-3 h-5 w-5" />
                     <span>Profile</span>
                   </Button>
                   <Button 
                     variant="ghost" 
-                    size="sm"
-                    className="justify-start"
+                    size="lg"
+                    className="justify-start py-4 text-base"
                     onClick={() => {
                       navigate('/settings');
                       setIsMobileMenuOpen(false);
                     }}
                   >
-                    <Settings className="mr-2 h-4 w-4" />
+                    <Settings className="mr-3 h-5 w-5" />
                     <span>Settings</span>
                   </Button>
                   <Button 
                     variant="ghost" 
-                    size="sm"
-                    className="justify-start text-red-400 hover:text-red-300"
+                    size="lg"
+                    className="justify-start py-4 text-base"
+                    onClick={() => {
+                      toggleAI();
+                      setIsMobileMenuOpen(false);
+                    }}
+                  >
+                    <Bot className="mr-3 h-5 w-5" />
+                    <span>AI Assistant: {isAIActive ? 'On' : 'Off'}</span>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="lg"
+                    className="justify-start py-4 text-base text-red-400 hover:text-red-300 hover:bg-red-500/10"
                     onClick={() => {
                       handleSignOut();
                       setIsMobileMenuOpen(false);
                     }}
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
+                    <LogOut className="mr-3 h-5 w-5" />
                     <span>Log out</span>
                   </Button>
                 </div>
@@ -393,7 +427,8 @@ export default function Navbar() {
             ) : (
               <Button 
                 variant="outline"
-                className="mt-2 w-full text-white bg-transparent border border-yellow-500 hover:bg-yellow-500 hover:text-black"
+                size="lg"
+                className="mt-6 w-full text-white bg-transparent border border-yellow-500 hover:bg-yellow-500 hover:text-black py-6 text-lg"
                 onClick={() => {
                   navigate('/signin');
                   setIsMobileMenuOpen(false);

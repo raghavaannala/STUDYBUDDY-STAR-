@@ -51,8 +51,8 @@ export const createGroup = async (
       throw new Error('User is not authenticated');
     }
     
-    // Generate a unique 6-character group code
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Generate a simple 6-digit numeric code that's easier to share
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
     
     const newGroup: Group = {
       id: uuidv4(),
@@ -154,8 +154,8 @@ export const getUserGroups = async (userId: string): Promise<Group[]> => {
 
 export const joinGroupByCode = async (code: string): Promise<Group | null> => {
   try {
-    // Clean up the code by removing any whitespace and converting to uppercase
-    const cleanCode = code.trim().toUpperCase();
+    // Clean up the code - no need to convert to uppercase since we're using numeric codes now
+    const cleanCode = code.trim();
     console.log(`[GroupService] Joining group with code: ${cleanCode} (original: ${code})`);
     
     const userId = auth.currentUser?.uid;
