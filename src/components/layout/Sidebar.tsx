@@ -10,7 +10,10 @@ import {
   Timer,
   Puzzle,
   Zap,
-  FileText
+  FileText,
+  Trophy,
+  Terminal,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -220,6 +223,62 @@ const Sidebar = () => {
                 onClick={() => navigate('/groups')}
               >
                 <Users className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* CodeBuddy Section */}
+        <div className="mb-6">
+          <div className="flex items-center mb-2">
+            {collapsed ? (
+              <Trophy className="h-5 w-5 mx-auto" />
+            ) : (
+              <h3 className="text-sm font-medium flex items-center">
+                <Trophy className="h-4 w-4 mr-2" />
+                <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
+                  CodeBuddy
+                </span>
+              </h3>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            {!collapsed ? (
+              <>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-9"
+                  onClick={() => navigate('/codebuddy')}
+                >
+                  <Code className="h-4 w-4 mr-2" />
+                  Practice Problems
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-9"
+                  onClick={() => navigate('/codebuddy')}
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Contests
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-left h-9"
+                  onClick={() => navigate('/codebuddy')}
+                >
+                  <Terminal className="h-4 w-4 mr-2" />
+                  My Solutions
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-10 h-10 rounded-full mx-auto block"
+                onClick={() => navigate('/codebuddy')}
+              >
+                <Trophy className="h-5 w-5" />
               </Button>
             )}
           </div>

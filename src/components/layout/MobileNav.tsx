@@ -40,6 +40,11 @@ export function MobileNav() {
       icon: <Code className="w-5 h-5" />,
     },
     {
+      name: "CodeBuddy",
+      path: "/codebuddy",
+      icon: <Code className="w-5 h-5" />,
+    },
+    {
       name: "Resume",
       path: "/resume",
       icon: <FileText className="w-5 h-5" />,

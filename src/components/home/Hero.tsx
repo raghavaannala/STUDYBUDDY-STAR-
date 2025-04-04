@@ -340,7 +340,7 @@ const Hero = () => {
               <span className="absolute inset-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent"></span>
               <span className="relative z-10 flex items-center">
                 <span className="text-white group-hover:text-white/90">
-                  ✨ Explore StudyBuddy ✨
+                  ✨ Explore Our Study Groups ✨
                 </span>
                 <span className="ml-2 transform group-hover:translate-x-1 transition-transform text-white group-hover:text-white/90">
                   <svg
@@ -368,13 +368,28 @@ const Hero = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 animate-fade-in-up animation-delay-500">
             <Button 
               size="lg" 
-              className="backdrop-blur-sm bg-gradient-to-br from-purple-600/90 to-indigo-700/90 hover:from-purple-500 hover:to-indigo-600 text-white border border-purple-400/30 shadow-[0_4px_20px_rgba(147,51,234,0.2)] hover:shadow-[0_8px_25px_rgba(147,51,234,0.4)] transform hover:translate-y-[-2px] transition-all duration-300"
+              className="backdrop-blur-sm bg-gradient-to-br from-orange-500 to-purple-600 hover:from-orange-400 hover:to-purple-500 text-white border border-orange-400/30 shadow-[0_4px_20px_rgba(249,115,22,0.3)] hover:shadow-[0_8px_25px_rgba(249,115,22,0.5)] transform hover:translate-y-[-2px] transition-all duration-300 group overflow-hidden"
               onClick={() => navigate('/code')}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-md"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-md"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 via-white/20 to-orange-500/0 group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
               <div className="relative z-10 flex items-center">
-                <Code className="mr-2 h-4 w-4" />
-                <span>CodeDiploMate</span>
+                <Code className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform duration-300" />
+                <span className="font-medium">CodeDiploMate(Ai Genie🔮)</span>
+                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Button>
+            
+            <Button 
+              size="lg" 
+              className="backdrop-blur-sm bg-gradient-to-br from-amber-400 to-purple-600 hover:from-amber-300 hover:to-purple-500 text-white border border-amber-400/30 shadow-[0_4px_20px_rgba(217,119,6,0.3)] hover:shadow-[0_8px_25px_rgba(217,119,6,0.5)] transform hover:translate-y-[-2px] transition-all duration-300 group overflow-hidden"
+              onClick={() => navigate('/codebuddy')}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-md"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-400/0 via-white/20 to-amber-400/0 group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
+              <div className="relative z-10 flex items-center">
+                <Code className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform duration-300" />
+                <span className="font-medium">CodeBuddy(Code Here)</span>
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </div>
             </Button>
@@ -459,6 +474,10 @@ const Hero = () => {
                     <li className="flex items-start">
                       <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
                       <span><strong className="text-purple-200">CodeDiploMate:</strong> AI-driven code analysis and optimization</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>
+                      <span><strong className="text-purple-200">CodeBuddy:</strong> Competitive coding practice and contests</span>
                     </li>
                     <li className="flex items-start">
                       <span className="inline-flex mr-2 mt-1 text-purple-400">▹</span>

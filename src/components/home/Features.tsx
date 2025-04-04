@@ -12,6 +12,13 @@ const features = [
     delay: 0.1
   },
   {
+    icon: <Code className="h-10 w-10 text-indigo-400" />,
+    title: 'CodeBuddy',
+    description: 'Practice competitive coding problems, join contests, and improve your algorithmic skills.',
+    link: '/codebuddy',
+    delay: 0.15
+  },
+  {
     icon: <BookOpen className="h-8 w-8 text-primary" />,
     title: 'Interactive Study Modules',
     description: 'AI-generated quizzes, notes, and summaries to enhance your learning experience.',

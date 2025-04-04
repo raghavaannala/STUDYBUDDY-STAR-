@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X, User, LogOut } from 'lucide-react';
+import { Users, Pencil, Trash2, MessageSquare, LogIn, Bot, Code, Video, Link, Check, Loader2, Plus, UserPlus, Globe, Search, SearchX, X, User, LogOut, Phone, PhoneOff, MessageCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -19,6 +19,10 @@ import * as chatService from '@/services/chatService';
 import * as userService from '@/services/userService';
 import { v4 as uuidv4 } from 'uuid';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { ref, get, set } from 'firebase/database';
+import { rtdb } from '@/config/firebase';
 
 interface CallState {
   initiator: string;
@@ -205,20 +209,30 @@ const Groups = () => {
       }
       
       const groups = await groupService.getUserGroups(user.uid);
+      console.log('[Groups] Retrieved groups with active calls:', groups.filter(g => g.activeCall).length);
       
-      // Convert to UI format
-      const formattedGroups: GroupUI[] = groups.map(group => ({
-        ...group,
-        privateId: group.id.substring(0, 8),
-        interest: group.tags ? group.tags.join(', ') : '',
-        code: group.code, // Include the 6-digit join code
-        activeCall: group.activeCall ? {
-          initiator: group.activeCall.initiatedBy,
-          participants: group.activeCall.participants,
-          startTime: group.activeCall.startedAt, // Already a number from RTDB
-          isAudioOnly: group.activeCall.isAudioOnly
-        } : undefined
-      }));
+      // Convert to UI format with special attention to activeCall
+      const formattedGroups: GroupUI[] = groups.map(group => {
+        const formattedGroup = {
+          ...group,
+          privateId: group.id.substring(0, 8),
+          interest: group.tags ? group.tags.join(', ') : '',
+          code: group.code, // Include the 6-digit join code
+          activeCall: group.activeCall ? {
+            initiator: group.activeCall.initiatedBy,
+            participants: group.activeCall.participants || [],
+            startTime: group.activeCall.startedAt, // Already a number from RTDB
+            isAudioOnly: group.activeCall.isAudioOnly
+          } : undefined
+        };
+        
+        if (formattedGroup.activeCall) {
+          console.log(`[Groups] Group ${group.id} has active call with ${formattedGroup.activeCall.participants.length} participants:`, 
+            formattedGroup.activeCall.participants);
+        }
+        
+        return formattedGroup;
+      });
       
       setGroups(formattedGroups);
       
@@ -1074,6 +1088,8 @@ Note: This is a simplified example. For more complex responses, try again later 
     }
 
     try {
+      console.log(`[Groups] Starting call in group: ${group.id}`);
+      
       // Start call using RTDB implementation - isAudioOnly is a boolean
       const isAudioOnly = false;
       const success = await groupService.startGroupCall(group.id, isAudioOnly);
@@ -1089,16 +1105,20 @@ Note: This is a simplified example. For more complex responses, try again later 
         throw new Error("Group not found after starting call");
       }
       
+      console.log(`[Groups] Retrieved updated group with active call:`, updatedGroup.activeCall);
+      
       // Convert to UI format
       const convertedGroup = {
         ...group,
         activeCall: updatedGroup.activeCall ? {
           initiator: updatedGroup.activeCall.initiatedBy,
-          participants: updatedGroup.activeCall.participants,
+          participants: updatedGroup.activeCall.participants || [user.uid],
           startTime: updatedGroup.activeCall.startedAt, // Already a number from RTDB
           isAudioOnly: updatedGroup.activeCall.isAudioOnly
         } : undefined
       };
+      
+      console.log(`[Groups] Converted active call:`, convertedGroup.activeCall);
       
       setActiveCallGroup(convertedGroup);
       setShowVideoCall(true);
@@ -1116,7 +1136,12 @@ Note: This is a simplified example. For more complex responses, try again later 
         title: "Call Started",
         description: "Video call has been initiated.",
       });
+      
+      // Force refresh the groups list to update UI with active call
+      fetchGroups();
+      
     } catch (error) {
+      console.error('[Groups] Error starting call:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to start call";
       toast({
         title: "Error",
@@ -1128,6 +1153,8 @@ Note: This is a simplified example. For more complex responses, try again later 
 
   const endGroupCall = async (group: GroupUI) => {
     try {
+      console.log(`[Groups] Ending call in group: ${group.id}`);
+      
       // End call using RTDB implementation
       const success = await groupService.endGroupCall(group.id);
       
@@ -1151,7 +1178,12 @@ Note: This is a simplified example. For more complex responses, try again later 
         title: "Call Ended",
         description: "Video call has been ended.",
       });
+      
+      // Force refresh the groups list to update UI without active call
+      fetchGroups();
+      
     } catch (error) {
+      console.error('[Groups] Error ending call:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to end call";
       toast({
         title: "Error",
@@ -1294,13 +1326,26 @@ Note: This is a simplified example. For more complex responses, try again later 
     });
   };
 
-  // Add this helper function to check if there's an active call in the group
+  // Update the hasActiveCall function with debugging
   const hasActiveCall = (group: GroupUI) => {
-    return group.activeCall && group.activeCall.participants.length > 0;
+    console.log(`[Groups] Checking for active call in group ${group.id}:`, group.activeCall);
+    if (!group || !group.activeCall) return false;
+    return true;
   };
 
-  // Add a join call function
-  const joinGroupCall = (group: GroupUI) => {
+  // Update the isUserInCall function with debugging
+  const isUserInCall = (group: GroupUI) => {
+    if (!user || !group.activeCall || !group.activeCall.participants) {
+      console.log(`[Groups] User not in call (missing data): user=${!!user}, activeCall=${!!group.activeCall}, participants=${!!group.activeCall?.participants}`);
+      return false;
+    }
+    const inCall = group.activeCall.participants.includes(user.uid);
+    console.log(`[Groups] User ${user.uid} in call: ${inCall}. Participants:`, group.activeCall.participants);
+    return inCall;
+  };
+
+  // Modified joinGroupCall function with better error handling and notifications
+  const joinGroupCall = async (group: GroupUI) => {
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -1311,31 +1356,73 @@ Note: This is a simplified example. For more complex responses, try again later 
       return;
     }
 
+    if (!group.members.includes(user.uid)) {
+      toast({
+        title: "Not a Member",
+        description: "You must be a member of this group to join the call.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      // Update the UI to show we're joining the call
+      // Show joining toast
       toast({
         title: "Joining Call",
         description: "Connecting to the group call...",
         duration: 3000,
       });
 
+      console.log(`[Groups] Joining call for group: ${group.id}`);
+      
+      // Mark user as participant in the call
+      const joinSuccess = await groupService.joinGroupCall(group.id);
+      
+      if (!joinSuccess) {
+        throw new Error("Failed to join the call. Please try again.");
+      }
+
+      // Re-fetch the group to get the updated participant list
+      const updatedGroup = await groupService.getGroupById(group.id);
+      
+      if (!updatedGroup) {
+        throw new Error("Failed to get updated group information.");
+      }
+      
+      // Convert to UI format
+      const convertedGroup = {
+        ...group,
+        activeCall: updatedGroup.activeCall ? {
+          initiator: updatedGroup.activeCall.initiatedBy,
+          participants: updatedGroup.activeCall.participants || [],
+          startTime: updatedGroup.activeCall.startedAt,
+          isAudioOnly: updatedGroup.activeCall.isAudioOnly
+        } : undefined
+      };
+
+      console.log(`[Groups] Setting active call group: ${JSON.stringify(convertedGroup.activeCall)}`);
+
       // Set the active call group to trigger the VideoCall component
-      setActiveCallGroup(group);
+      setActiveCallGroup(convertedGroup);
       setShowVideoCall(true);
 
-      // Add a system message to the chat with more details
-      chatService.sendMessage({
+      // Add a system message to the chat
+      await chatService.sendMessage({
         groupId: group.id,
         userId: 'system',
-        content: `🎥 **${user.displayName || 'Someone'} joined the call**\n\nThe call now has ${(group.activeCall?.participants.length || 0) + 1} participant${(group.activeCall?.participants.length || 0) + 1 !== 1 ? 's' : ''}.`,
+        content: `🎥 **${user.displayName || 'Someone'} joined the call**\n\nThe call now has ${updatedGroup.activeCall?.participants.length || 0} participant${(updatedGroup.activeCall?.participants.length || 0) !== 1 ? 's' : ''}.`,
         isBot: true,
         userName: 'System'
       });
-
-      // Mark user as participant in the call
-      groupService.joinGroupCall(group.id);
+      
+      toast({
+        title: "Connected",
+        description: "You have joined the call successfully!",
+        duration: 2000,
+      });
+      
     } catch (error) {
-      console.error('Error joining call:', error);
+      console.error('[Groups] Error joining call:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to join call";
       toast({
         title: "Error",
@@ -1963,40 +2050,39 @@ Note: This is a simplified example. For more complex responses, try again later 
                                 loadChatMessages(group.id);
                               }}
                             >
-                              <MessageSquare className="h-4 w-4 mr-1" />
+                              <MessageCircle className="h-4 w-4 mr-1" />
                               Chat
                             </Button>
-                            {group.activeCall ? (
-                              activeCallGroup && activeCallGroup.id === group.id ? (
+                            {hasActiveCall(group) ? (
+                              isUserInCall(group) ? (
                                 <Button
                                   variant="destructive"
                                   size="sm"
                                   onClick={() => endGroupCall(group)}
+                                  className="flex items-center gap-1"
                                 >
-                                  <Video className="h-4 w-4 mr-1" />
+                                  <PhoneOff className="h-4 w-4" />
                                   Leave Call
                                 </Button>
                               ) : (
                                 <Button
-                                  variant="default"
+                                  variant="default" 
                                   size="sm"
                                   onClick={() => joinGroupCall(group)}
-                                  className="bg-green-500 hover:bg-green-600"
+                                  className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white font-semibold"
                                 >
-                                  <Video className="h-4 w-4 mr-1" />
-                                  Join Call
+                                  <Phone className="h-4 w-4" />
+                                  Join Call ({group.activeCall?.participants?.length || 0})
                                 </Button>
                               )
                             ) : (
                               <Button
-                                variant="default"
+                                variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  if (!user) return;
-                                  startGroupCall(group);
-                                }}
+                                onClick={() => startGroupCall(group)}
+                                className="flex items-center gap-1"
                               >
-                                <Video className="h-4 w-4 mr-1" />
+                                <Phone className="h-4 w-4" />
                                 Start Call
                               </Button>
                             )}
@@ -2113,40 +2199,39 @@ Note: This is a simplified example. For more complex responses, try again later 
                                 loadChatMessages(group.id);
                               }}
                             >
-                              <MessageSquare className="h-4 w-4 mr-1" />
+                              <MessageCircle className="h-4 w-4 mr-1" />
                               Chat
                             </Button>
-                            {group.activeCall ? (
-                              activeCallGroup && activeCallGroup.id === group.id ? (
+                            {hasActiveCall(group) ? (
+                              isUserInCall(group) ? (
                                 <Button
                                   variant="destructive"
                                   size="sm"
                                   onClick={() => endGroupCall(group)}
+                                  className="flex items-center gap-1"
                                 >
-                                  <Video className="h-4 w-4 mr-1" />
+                                  <PhoneOff className="h-4 w-4" />
                                   Leave Call
                                 </Button>
                               ) : (
                                 <Button
-                                  variant="default"
+                                  variant="default" 
                                   size="sm"
                                   onClick={() => joinGroupCall(group)}
-                                  className="bg-green-500 hover:bg-green-600"
+                                  className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white font-semibold"
                                 >
-                                  <Video className="h-4 w-4 mr-1" />
-                                  Join Call
+                                  <Phone className="h-4 w-4" />
+                                  Join Call ({group.activeCall?.participants?.length || 0})
                                 </Button>
                               )
                             ) : (
                               <Button
-                                variant="default"
+                                variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  if (!user) return;
-                                  startGroupCall(group);
-                                }}
+                                onClick={() => startGroupCall(group)}
+                                className="flex items-center gap-1"
                               >
-                                <Video className="h-4 w-4 mr-1" />
+                                <Phone className="h-4 w-4" />
                                 Start Call
                               </Button>
                             )}
@@ -2184,6 +2269,18 @@ Note: This is a simplified example. For more complex responses, try again later 
                   </Card>
                 ))}
               </div>
+
+              {/* Join Group Button */}
+              <div className="mt-6 flex justify-center">
+                <Button 
+                  onClick={() => setShowJoinDialog(true)}
+                  variant="outline"
+                  className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 border-purple-500/20"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Join with Code
+                </Button>
+              </div>
             </>
           )}
         </>
@@ -2191,7 +2288,7 @@ Note: This is a simplified example. For more complex responses, try again later 
 
       {/* Join Group Dialog */}
       {showJoinDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
           <Card className="p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-semibold">Join Study Group</h3>
@@ -2343,30 +2440,39 @@ Note: This is a simplified example. For more complex responses, try again later 
                   <Bot className="h-4 w-4" />
                   CodeDiploMate
                 </Button>
-                {hasActiveCall(selectedGroup) && !activeCallGroup ? (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => joinGroupCall(selectedGroup)}
-                    className="flex items-center gap-1 bg-green-500 hover:bg-green-600"
-                  >
-                    <Video className="h-4 w-4" />
-                    Join Active Call
-                  </Button>
-                ) : !hasActiveCall(selectedGroup) ? (
+                {hasActiveCall(selectedGroup) ? (
+                  isUserInCall(selectedGroup) ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => endGroupCall(selectedGroup)}
+                      className="flex items-center gap-1"
+                    >
+                      <PhoneOff className="h-4 w-4" />
+                      Leave Call
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => joinGroupCall(selectedGroup)}
+                      className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      <Phone className="h-4 w-4" />
+                      Join Call ({selectedGroup.activeCall?.participants?.length || 0})
+                    </Button>
+                  )
+                ) : (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (!user) return;
-                      startGroupCall(selectedGroup);
-                    }}
+                    onClick={() => startGroupCall(selectedGroup)}
                     className="flex items-center gap-1"
                   >
-                    <Video className="h-4 w-4" />
+                    <Phone className="h-4 w-4" />
                     Start Call
                   </Button>
-                ) : null}
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -2463,148 +2569,52 @@ Note: This is a simplified example. For more complex responses, try again later 
               </button>
             </div>
           </Card>
-
-          {/* CodeDiploMate Dialog */}
-          {showCodeDiploMate && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <Card className="p-6 max-w-md w-full">
-                <div className="flex items-center gap-2 mb-4">
-                  <Bot className="h-6 w-6 text-purple-500" />
-                  <h3 className="text-lg font-semibold">CodeDiploMate Assistant</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Ask me anything about programming, and I'll help you and your group!
-                </p>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="codeQuestion">Your Question</Label>
-                    <Input
-                      id="codeQuestion"
-                      placeholder="What would you like to know about programming?"
-                      value={codeQuestion}
-                      onChange={(e) => setCodeQuestion(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={handleCodeDiploMateHelp}
-                      className="flex-1"
-                      disabled={!codeQuestion.trim()}
-                    >
-                      Get Help
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowCodeDiploMate(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* Video Call Dialog */}
-          {showVideoCall && selectedGroup && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="absolute top-4 right-4 bg-background p-4 rounded-lg shadow-lg z-10 w-64">
-                <h3 className="text-lg font-semibold mb-2">Call Controls</h3>
-                
-                {/* Audio-only toggle */}
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => toggleAudioOnly(selectedGroup)}
-                  className="w-full mb-2 justify-start"
-                >
-                  {selectedGroup.activeCall?.isAudioOnly ? 
-                    <span className="flex items-center">
-                      <Video className="h-4 w-4 mr-2 line-through" /> 
-                      Enable Video
-                    </span> : 
-                    <span className="flex items-center">
-                      <Video className="h-4 w-4 mr-2" /> 
-                      Switch to Audio-only
-                    </span>
-                  }
-                </Button>
-                
-                {/* Invite members section */}
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium mb-2">Invite Members</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {selectedGroup.members
-                      .filter(memberId => 
-                        selectedGroup.activeCall && 
-                        !selectedGroup.activeCall.participants.includes(memberId) &&
-                        memberId !== user?.uid
-                      )
-                      .map(memberId => (
-                        <Button
-                          key={memberId}
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => inviteToCall(selectedGroup, memberId)}
-                          className="w-full justify-between"
-                        >
-                          <span className="truncate">User {memberId.substring(0, 4)}...</span>
-                          <Users className="h-4 w-4 ml-2" />
-                        </Button>
-                      ))}
-                      
-                    {selectedGroup.members.filter(id => 
-                      id !== user?.uid && 
-                      selectedGroup.activeCall && 
-                      !selectedGroup.activeCall.participants.includes(id)
-                    ).length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        No other members to invite
-                      </p>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Participants section */}
-                {selectedGroup.activeCall && selectedGroup.activeCall.participants.length > 1 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium mb-2">Participants</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {selectedGroup.activeCall.participants
-                        .filter(id => id !== user?.uid)
-                        .map(pId => (
-                          <div key={pId} className="text-xs flex items-center bg-muted p-2 rounded">
-                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                            <span>User {pId.substring(0, 4)}...</span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* End call button */}
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  onClick={() => endGroupCall(selectedGroup)}
-                  className="w-full mt-4"
-                >
-                  End Call
-                </Button>
-              </div>
-              
-              <VideoCall
-                groupId={selectedGroup.id}
-                userName={user?.displayName || 'Anonymous'}
-                onClose={() => endGroupCall(selectedGroup)}
-                isAudioOnly={selectedGroup.activeCall?.isAudioOnly || false}
-              />
-            </div>
-          )}
         </div>
       )}
 
+      {/* CodeDiploMate Dialog */}
+      {showCodeDiploMate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="p-6 max-w-md w-full">
+            <div className="flex items-center gap-2 mb-4">
+              <Bot className="h-6 w-6 text-purple-500" />
+              <h3 className="text-lg font-semibold">CodeDiploMate Assistant</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Ask me anything about programming, and I'll help you and your group!
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="codeQuestion">Your Question</Label>
+                <Input
+                  id="codeQuestion"
+                  placeholder="What would you like to know about programming?"
+                  value={codeQuestion}
+                  onChange={(e) => setCodeQuestion(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleCodeDiploMateHelp}
+                  className="flex-1"
+                  disabled={!codeQuestion.trim()}
+                >
+                  Get Help
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowCodeDiploMate(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Video Call */}
       {activeCallGroup && user && (
         <VideoCall
           groupId={activeCallGroup.id}

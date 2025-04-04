@@ -169,6 +169,11 @@ export default function Navbar() {
       icon: <Code className="h-4 w-4 mr-2" />
     },
     {
+      name: "CodeBuddy",
+      path: "/codebuddy",
+      icon: <Code className="h-4 w-4 mr-2" />
+    },
+    {
       name: "ResumeBuddy",
       path: "/resume",
       icon: <FileText className="h-4 w-4 mr-2" />

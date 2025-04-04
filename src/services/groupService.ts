@@ -416,8 +416,10 @@ export const endGroupCall = async (groupId: string): Promise<boolean> => {
 // Join an existing group call
 export const joinGroupCall = async (groupId: string): Promise<boolean> => {
   try {
+    console.log(`[GroupService] User attempting to join call in group: ${groupId}`);
+    
     if (!auth.currentUser) {
-      console.error("[groupService] Cannot join call: No authenticated user");
+      console.error("[GroupService] Cannot join call: No authenticated user");
       return false;
     }
 
@@ -426,7 +428,7 @@ export const joinGroupCall = async (groupId: string): Promise<boolean> => {
     const snapshot = await get(groupRef);
     
     if (!snapshot.exists()) {
-      console.error(`[groupService] Group not found: ${groupId}`);
+      console.error(`[GroupService] Group not found: ${groupId}`);
       return false;
     }
     
@@ -434,31 +436,54 @@ export const joinGroupCall = async (groupId: string): Promise<boolean> => {
     
     // Check if there's an active call
     if (!groupData.activeCall) {
-      console.error(`[groupService] No active call in group: ${groupId}`);
+      console.error(`[GroupService] No active call in group: ${groupId}`);
       return false;
     }
     
+    const userId = auth.currentUser.uid;
+    
     // Get current participants
     const participants = groupData.activeCall.participants || [];
+    console.log(`[GroupService] Current call participants: ${JSON.stringify(participants)}`);
     
     // Add current user if not already in the call
-    if (!participants.includes(auth.currentUser.uid)) {
+    if (!participants.includes(userId)) {
       // Update participants array
-      const updatedParticipants = [...participants, auth.currentUser.uid];
+      const updatedParticipants = [...participants, userId];
+      
+      console.log(`[GroupService] Adding user ${userId} to call participants`);
       
       // Update the group data with the new participant
       await update(ref(rtdb, `groups/${groupId}/activeCall`), {
         participants: updatedParticipants
       });
       
-      console.log(`[groupService] User joined call in group: ${groupId}`);
+      // Also add user to the call signaling
+      const callRef = ref(rtdb, `calls/${groupId}/participants/${userId}`);
+      await set(callRef, {
+        userName: auth.currentUser.displayName || 'Anonymous',
+        joinedAt: new Date().toISOString(),
+        isAudioOnly: groupData.activeCall.isAudioOnly || false,
+        lastSeen: new Date().toISOString()
+      });
+      
+      console.log(`[GroupService] User ${userId} joined call in group: ${groupId}`);
     } else {
-      console.log(`[groupService] User already in call for group: ${groupId}`);
+      console.log(`[GroupService] User ${userId} already in call for group: ${groupId}`);
+      
+      // Update lastSeen timestamp
+      const callRef = ref(rtdb, `calls/${groupId}/participants/${userId}`);
+      await set(callRef, {
+        userName: auth.currentUser.displayName || 'Anonymous',
+        joinedAt: new Date().toISOString(),
+        isAudioOnly: groupData.activeCall.isAudioOnly || false,
+        lastSeen: new Date().toISOString()
+      });
     }
     
     return true;
   } catch (error) {
-    console.error("[groupService] Error joining group call:", error);
+    console.error("[GroupService] Error joining group call:", error);
     return false;
   }
 };

@@ -12,6 +12,7 @@ import Navbar from "./components/layout/Navbar";
 import Index from "./pages/Index";
 import Study from "./pages/Study";
 import CodeDiploMate from "./pages/CodeDiploMate";
+import CodeBuddy from "./pages/CodeBuddy";
 import Search from "./pages/Search";
 import NotFound from "./pages/NotFound";
 import Games from "./pages/Games";
@@ -27,13 +28,16 @@ import SignIn from '@/pages/SignIn';
 import { TestGroups } from './components/TestGroups';
 import FirebaseTest from './components/FirebaseTest';
 import FirestoreTest from './components/FirestoreTest';
-import { useEffect } from "react";
+import React, { useEffect, lazy, Suspense, Component, ReactNode, ErrorInfo } from "react";
 import "./App.css";
 import "./styles/mobile.css";
 import { AIBuddyAssistant } from "./components/AIBuddyAssistant";
 import { AIPageListener } from "./components/AIPageListener";
 import { MobileNav } from "./components/layout/MobileNav";
 import { Meta } from "./components/layout/Meta";
+
+// Lazy load CodeBuddy for better error handling
+const LazyCodeBuddy = lazy(() => import('./pages/CodeBuddy'));
 
 // Add viewport meta tag at the top level
 if (typeof document !== 'undefined') {
@@ -51,6 +55,53 @@ if (typeof document !== 'undefined') {
 }
 
 const queryClient = new QueryClient();
+
+// Define the ErrorBoundary props and state types
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+// Simple error boundary component
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    console.error("Component Error:", error, errorInfo);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="container mx-auto px-4 py-12 text-center">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">Something went wrong</h1>
+          <p className="text-gray-300 mb-6">There was an error loading this page.</p>
+          <pre className="bg-gray-800 p-4 rounded text-sm text-gray-400 mb-6 overflow-auto max-h-[200px]">
+            {this.state.error?.toString()}
+          </pre>
+          <button 
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded"
+            onClick={() => window.location.reload()}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const App = () => {
   useEffect(() => {
@@ -90,6 +141,18 @@ const App = () => {
                         <Route path="/" element={<Index />} />
                         <Route path="/study" element={<Study />} />
                         <Route path="/code" element={<CodeDiploMate/>} />
+                        <Route path="/codebuddy" element={
+                          <ErrorBoundary>
+                            <Suspense fallback={
+                              <div className="flex flex-col items-center justify-center py-20">
+                                <div className="w-10 h-10 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+                                <p className="text-gray-400">Loading CodeBuddy page...</p>
+                              </div>
+                            }>
+                              <LazyCodeBuddy />
+                            </Suspense>
+                          </ErrorBoundary>
+                        } />
                         <Route path="/search" element={<Search />} />
                         <Route path="/resume" element={<Resume />} />
                         {gameRoutes}

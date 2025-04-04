@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, Users, Link, Copy } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { db, auth, rtdb } from '@/config/firebase';
-import { ref, onValue, set, remove, onDisconnect, push, child, get } from 'firebase/database';
+import { ref, onValue, set, remove, onDisconnect, push, child, get, update } from 'firebase/database';
 
 interface VideoCallProps {
   groupId: string;
@@ -32,6 +32,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
   const localStreamRef = useRef<MediaStream | null>(null);
   const currentUserId = auth.currentUser?.uid || 'anonymous';
   const callSignalingRef = useRef<any>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'failed'>('connecting');
   
   // ICE servers configuration for WebRTC
   const iceServers = {
@@ -43,13 +44,26 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
         urls: 'turn:openrelay.metered.ca:80',
         username: 'openrelayproject',
         credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
       }
     ],
+    iceCandidatePoolSize: 10
   };
 
   const addDebugMessage = (message: string) => {
-    console.log(`[VideoCall Debug] ${message}`);
-    setDebugMessage(prev => `${message}\n${prev}`.slice(0, 1000));
+    const timestamp = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm format
+    const debugMsg = `[${timestamp}] ${message}`;
+    console.log(`[VideoCall Debug] ${debugMsg}`);
+    setDebugMessage(prev => `${debugMsg}\n${prev}`.slice(0, 5000)); // Increase limit to keep more debug messages
   };
 
   // Initialize Firebase connection for signaling
@@ -69,28 +83,74 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
     const callRef = ref(rtdb, `calls/${groupId}`);
     callSignalingRef.current = callRef;
     
-    // Add current user to participants
+    // Add current user to participants with onDisconnect cleanup
     const myConnectionRef = child(callRef, `participants/${currentUserId}`);
+    const onDisconnectRef = onDisconnect(myConnectionRef);
+    
+    // Set up cleanup when user disconnects
+    onDisconnectRef.remove().catch(error => {
+      addDebugMessage(`Error setting up disconnect cleanup: ${error.message}`);
+    });
+    
+    // Add user to participants
     set(myConnectionRef, {
       userName,
       joinedAt: new Date().toISOString(),
-      isAudioOnly
+      isAudioOnly,
+      lastSeen: new Date().toISOString()
     }).then(() => {
       addDebugMessage(`Added user ${userName} (${currentUserId.slice(0, 5)}...) to participants`);
+      
+      // Also update the group's call participants array through the RTDB
+      const groupCallRef = ref(rtdb, `groups/${groupId}/activeCall/participants`);
+      get(groupCallRef).then(snapshot => {
+        const participants = snapshot.val() || [];
+        if (!participants.includes(currentUserId)) {
+          const updatedParticipants = [...participants, currentUserId];
+          update(ref(rtdb, `groups/${groupId}/activeCall`), {
+            participants: updatedParticipants
+          }).then(() => {
+            addDebugMessage(`Updated group call participants in RTDB`);
+          }).catch(error => {
+            addDebugMessage(`Error updating group call participants: ${error.message}`);
+          });
+        }
+      }).catch(error => {
+        addDebugMessage(`Error getting group call participants: ${error.message}`);
+      });
     }).catch(error => {
       addDebugMessage(`Error adding user to participants: ${error.message}`);
     });
     
     // Clean up when component unmounts
     return () => {
-      // Remove self from participants
-      if (callSignalingRef.current) {
-        const myRef = child(callSignalingRef.current, `participants/${currentUserId}`);
-        remove(myRef).catch(error => {
-          console.error('Error removing participant:', error);
-        });
-      }
       stopLocalStream();
+      // Close all peer connections
+      Object.values(peerConnections.current).forEach(pc => pc.close());
+      peerConnections.current = {};
+      
+      // Remove user from call participants if this was a clean unmount
+      const groupCallRef = ref(rtdb, `groups/${groupId}/activeCall/participants`);
+      get(groupCallRef).then(snapshot => {
+        const participants = snapshot.val() || [];
+        if (participants.includes(currentUserId)) {
+          const updatedParticipants = participants.filter(id => id !== currentUserId);
+          if (updatedParticipants.length > 0) {
+            update(ref(rtdb, `groups/${groupId}/activeCall`), {
+              participants: updatedParticipants
+            }).catch(error => {
+              console.error(`Error removing user from call participants: ${error.message}`);
+            });
+          } else {
+            // If this was the last participant, end the call
+            update(ref(rtdb, `groups/${groupId}/activeCall`), null).catch(error => {
+              console.error(`Error ending call: ${error.message}`);
+            });
+          }
+        }
+      }).catch(error => {
+        console.error(`Error getting call participants for cleanup: ${error.message}`);
+      });
     };
   }, [groupId, userName, currentUserId, isAudioOnly, toast]);
 
@@ -108,15 +168,41 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
       addDebugMessage(`Participants updated: ${Object.keys(participantsData).length} participant(s)`);
       
       // Handle new participants and create peer connections
-      Object.keys(participantsData).forEach(participantId => {
-        if (participantId !== currentUserId && !peerConnections.current[participantId]) {
-          addDebugMessage(`New participant detected: ${participantId.slice(0, 5)}...`);
-          // Create a new peer connection for this participant
-          createPeerConnection(participantId);
+      Object.entries(participantsData).forEach(([participantId, data]: [string, any]) => {
+        if (participantId !== currentUserId) {
+          const lastSeen = new Date(data.lastSeen).getTime();
+          const now = Date.now();
           
-          // If we have a local stream, send an offer
-          if (localStreamRef.current) {
-            createAndSendOffer(participantId);
+          // Only create connection if participant is active (seen in last 30 seconds)
+          if (now - lastSeen < 30000) {
+            if (!peerConnections.current[participantId]) {
+              addDebugMessage(`New participant detected: ${participantId.slice(0, 5)}...`);
+              createPeerConnection(participantId);
+              
+              // If we have a local stream, send an offer
+              if (localStreamRef.current) {
+                const pc = peerConnections.current[participantId];
+                if (pc) {
+                  pc.createOffer().then(offer => {
+                    return pc.setLocalDescription(offer).then(() => {
+                      if (offer.sdp) {
+                        sendOffer(participantId, offer.sdp);
+                      }
+                    });
+                  }).catch(error => {
+                    addDebugMessage(`Error creating offer: ${error.message}`);
+                  });
+                }
+              }
+            }
+          } else {
+            // Remove inactive participants
+            if (peerConnections.current[participantId]) {
+              addDebugMessage(`Removing inactive participant: ${participantId.slice(0, 5)}...`);
+              peerConnections.current[participantId].close();
+              delete peerConnections.current[participantId];
+              setParticipants(prev => prev.filter(p => p.id !== participantId));
+            }
           }
         }
       });
@@ -126,6 +212,22 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
     });
     
     return () => unsubscribe();
+  }, [currentUserId]);
+
+  // Update last seen timestamp periodically
+  useEffect(() => {
+    if (!callSignalingRef.current) return;
+    
+    const interval = setInterval(() => {
+      const myConnectionRef = child(callSignalingRef.current, `participants/${currentUserId}`);
+      set(myConnectionRef, {
+        lastSeen: new Date().toISOString()
+      }).catch(error => {
+        console.error('Error updating last seen:', error);
+      });
+    }, 10000); // Update every 10 seconds
+    
+    return () => clearInterval(interval);
   }, [currentUserId]);
 
   // Listen for WebRTC signaling messages
@@ -163,6 +265,8 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
     const answersUnsubscribe = onValue(answersRef, (snapshot) => {
       const answers = snapshot.val() || {};
       
+      addDebugMessage(`Received ${Object.keys(answers).length} answer(s)`);
+      
       Object.entries(answers).forEach(([answerKey, answerData]: [string, any]) => {
         if (answerData && answerData.from && answerData.sdp) {
           addDebugMessage(`Received answer from: ${answerData.from.slice(0, 5)}...`);
@@ -185,9 +289,14 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
     const candidatesUnsubscribe = onValue(candidatesRef, (snapshot) => {
       const candidates = snapshot.val() || {};
       
+      const candidateCount = Object.keys(candidates).length;
+      if (candidateCount > 0) {
+        addDebugMessage(`Received ${candidateCount} ICE candidate(s)`);
+      }
+      
       Object.entries(candidates).forEach(([candidateKey, candidateData]: [string, any]) => {
         if (candidateData && candidateData.from && candidateData.candidate) {
-          addDebugMessage(`Received ICE candidate from: ${candidateData.from.slice(0, 5)}...`);
+          addDebugMessage(`Processing ICE candidate from: ${candidateData.from.slice(0, 5)}...`);
           handleIceCandidate(candidateData.from, candidateData.candidate);
           // Remove the processed candidate
           remove(child(candidatesRef, candidateKey)).catch(error => {
@@ -255,10 +364,32 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
       }
 
       // Notify other participants by creating peer connections
-      Object.keys(peerConnections.current).forEach(participantId => {
+      const participantIds = Object.keys(peerConnections.current);
+      const promises = participantIds.map((participantId) => {
         addDebugMessage(`Sending offer to existing participant: ${participantId.slice(0, 5)}...`);
-        createAndSendOffer(participantId);
+        const pc = peerConnections.current[participantId];
+        if (pc) {
+          return pc.createOffer()
+            .then(offer => {
+              return pc.setLocalDescription(offer)
+                .then(() => {
+                  if (offer.sdp) {
+                    return sendOffer(participantId, offer.sdp);
+                  }
+                });
+            })
+            .catch(error => {
+              addDebugMessage(`Error creating offer for ${participantId.slice(0, 5)}...: ${error.message}`);
+            });
+        }
+        return Promise.resolve(); // Return a resolved promise for undefined cases
       });
+      
+      try {
+        await Promise.all(promises);
+      } catch (error) {
+        addDebugMessage(`Error sending offers: ${error.message}`);
+      }
 
       toast({
         title: isAudioOnly ? "Audio Ready" : "Camera Ready",
@@ -267,11 +398,11 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
           : "Your camera and microphone are now active.",
       });
     } catch (error) {
-      console.error('Error accessing media devices:', error);
-      addDebugMessage(`Media access error: ${error.message}`);
+      console.error('Error initializing local stream:', error);
+      addDebugMessage(`Error initializing local stream: ${error.message}`);
       toast({
-        title: "Media Access Error",
-        description: "Unable to access camera or microphone. Please check permissions and ensure no other app is using them.",
+        title: "Media Error",
+        description: "Failed to access camera or microphone. Please check your permissions.",
         variant: "destructive"
       });
     }
@@ -314,14 +445,45 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
         }
       };
 
+      // Monitor connection state
+      pc.onconnectionstatechange = () => {
+        addDebugMessage(`Connection state changed to: ${pc.connectionState}`);
+        if (pc.connectionState === 'failed') {
+          // Attempt to restart ICE
+          pc.restartIce();
+        }
+      };
+
       pc.oniceconnectionstatechange = () => {
         addDebugMessage(`ICE connection state changed to: ${pc.iceConnectionState}`);
-        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+        
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          setConnectionStatus('connected');
+        } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
           // Handle disconnected participant
           addDebugMessage(`Participant ${participantId.slice(0, 5)}... disconnected (${pc.iceConnectionState})`);
           setParticipants(prev => prev.filter(p => p.id !== participantId));
           pc.close();
           delete peerConnections.current[participantId];
+          
+          // Check if we have any remaining connections
+          if (Object.keys(peerConnections.current).length === 0) {
+            setConnectionStatus('failed');
+          }
+        }
+      };
+
+      // Handle negotiation needed
+      pc.onnegotiationneeded = async () => {
+        addDebugMessage(`Negotiation needed for ${participantId.slice(0, 5)}...`);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          if (offer.sdp) {
+            sendOffer(participantId, offer.sdp);
+          }
+        } catch (error) {
+          addDebugMessage(`Error during negotiation: ${error.message}`);
         }
       };
       
@@ -373,36 +535,40 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
     }
   };
 
-  const createAndSendOffer = async (participantId: string) => {
-    const pc = peerConnections.current[participantId];
-    if (!pc) {
-      addDebugMessage(`Cannot create offer: No peer connection for ${participantId.slice(0, 5)}...`);
-      return;
-    }
+  const sendOffer = async (participantId: string, sdp: string) => {
+    if (!callSignalingRef.current) return;
     
-    try {
-      addDebugMessage(`Creating offer for ${participantId.slice(0, 5)}...`);
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      
-      if (offer.sdp) {
-        addDebugMessage(`Sending offer to ${participantId.slice(0, 5)}...`);
-        // Send the offer to the participant
-        const offersRef = child(callSignalingRef.current, `signaling/offers/${participantId}`);
-        push(offersRef, {
-          from: currentUserId,
-          sdp: offer.sdp
-        }).catch(error => {
-          addDebugMessage(`Error sending offer: ${error.message}`);
-          console.error('Error sending offer:', error);
-        });
-      } else {
-        addDebugMessage('Created offer has no SDP');
-      }
-    } catch (error) {
-      console.error('Error creating offer:', error);
-      addDebugMessage(`Error creating offer: ${error.message}`);
-    }
+    addDebugMessage(`Sending offer to ${participantId.slice(0, 5)}...`);
+    const offersRef = child(callSignalingRef.current, `signaling/offers/${participantId}`);
+    await push(offersRef, {
+      from: currentUserId,
+      sdp,
+      timestamp: Date.now()
+    });
+  };
+
+  const sendAnswer = async (participantId: string, sdp: string) => {
+    if (!callSignalingRef.current) return;
+    
+    addDebugMessage(`Sending answer to ${participantId.slice(0, 5)}...`);
+    const answersRef = child(callSignalingRef.current, `signaling/answers/${participantId}`);
+    await push(answersRef, {
+      from: currentUserId,
+      sdp,
+      timestamp: Date.now()
+    });
+  };
+
+  const sendIceCandidate = async (participantId: string, candidate: RTCIceCandidate) => {
+    if (!callSignalingRef.current) return;
+    
+    addDebugMessage(`Sending ICE candidate to ${participantId.slice(0, 5)}...`);
+    const candidatesRef = child(callSignalingRef.current, `signaling/candidates/${participantId}`);
+    await push(candidatesRef, {
+      from: currentUserId,
+      candidate: JSON.stringify(candidate),
+      timestamp: Date.now()
+    });
   };
 
   const handleOffer = async (fromParticipantId: string, sdp: string) => {
@@ -425,15 +591,7 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
       
       if (answer.sdp) {
         addDebugMessage(`Sending answer to ${fromParticipantId.slice(0, 5)}...`);
-        // Send the answer back to the participant
-        const answersRef = child(callSignalingRef.current, `signaling/answers/${fromParticipantId}`);
-        push(answersRef, {
-          from: currentUserId,
-          sdp: answer.sdp
-        }).catch(error => {
-          addDebugMessage(`Error sending answer: ${error.message}`);
-          console.error('Error sending answer:', error);
-        });
+        await sendAnswer(fromParticipantId, answer.sdp);
       } else {
         addDebugMessage('Created answer has no SDP');
       }
@@ -459,23 +617,6 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
       console.error('Error handling answer:', error);
       addDebugMessage(`Error handling answer: ${error.message}`);
     }
-  };
-
-  const sendIceCandidate = (toParticipantId: string, candidate: RTCIceCandidate) => {
-    if (!callSignalingRef.current) {
-      addDebugMessage('Cannot send ICE candidate: No call signaling reference');
-      return;
-    }
-    
-    addDebugMessage(`Sending ICE candidate to ${toParticipantId.slice(0, 5)}...`);
-    const candidatesRef = child(callSignalingRef.current, `signaling/candidates/${toParticipantId}`);
-    push(candidatesRef, {
-      from: currentUserId,
-      candidate: JSON.stringify(candidate)
-    }).catch(error => {
-      addDebugMessage(`Error sending ICE candidate: ${error.message}`);
-      console.error('Error sending ICE candidate:', error);
-    });
   };
 
   const handleIceCandidate = async (fromParticipantId: string, candidateJson: string) => {
@@ -662,6 +803,51 @@ const VideoCall: React.FC<VideoCallProps> = ({ groupId, onClose, userName, isAud
         >
           <PhoneOff className="h-4 w-4" />
         </Button>
+      </div>
+
+      <div className="absolute top-2 right-2 z-20">
+        <div className={`px-3 py-1 rounded-full text-xs flex items-center gap-1 ${
+          connectionStatus === 'connected' 
+            ? 'bg-green-500/30 text-green-100' 
+            : connectionStatus === 'failed'
+            ? 'bg-red-500/30 text-red-100'
+            : 'bg-yellow-500/30 text-yellow-100'
+        }`}>
+          {connectionStatus === 'connected' && (
+            <>
+              <div className="w-2 h-2 rounded-full bg-green-400"></div>
+              Connected
+            </>
+          )}
+          {connectionStatus === 'connecting' && (
+            <>
+              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+              Connecting...
+            </>
+          )}
+          {connectionStatus === 'failed' && (
+            <>
+              <div className="w-2 h-2 rounded-full bg-red-400"></div>
+              Connection Failed
+              <Button 
+                size="sm"
+                variant="ghost" 
+                className="ml-1 h-6 px-2 text-xs"
+                onClick={() => {
+                  setConnectionStatus('connecting');
+                  // Close existing connections
+                  Object.values(peerConnections.current).forEach(pc => pc.close());
+                  peerConnections.current = {};
+                  
+                  // Restart the connection process
+                  initializeLocalStream();
+                }}
+              >
+                Retry
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </Card>
   );

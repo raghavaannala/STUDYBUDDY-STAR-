@@ -183,7 +183,7 @@ Format your response as a JSON with the following structure:
       if (jsonMatch && jsonMatch[1]) {
         const parsedResponse = JSON.parse(jsonMatch[1]);
         return parsedResponse as ResumeGenerationResponse;
-      } else {
+    } else {
         // If JSON parsing fails, return a basic response with the content
         return {
           content: response.code,
@@ -269,7 +269,7 @@ Format your response as a JSON with the following structure:
       if (jsonMatch && jsonMatch[1]) {
         const parsedResponse = JSON.parse(jsonMatch[1]);
         return parsedResponse as ResumeGenerationResponse;
-      } else {
+    } else {
         // If JSON parsing fails, return a basic response with the content
         return {
           content: response.code,
@@ -280,8 +280,8 @@ Format your response as a JSON with the following structure:
             missing: []
           }
         };
-      }
-    } catch (error) {
+    }
+  } catch (error) {
       console.error("Error parsing resume optimization response:", error);
       return {
         content: response.code,
