@@ -5,23 +5,21 @@ import { nanoid } from 'nanoid';
 export interface TestCase {
   input: string;
   output: string;
-  explanation?: string;
+  explanation: string;
 }
 
 export interface CodingProblem {
   id: string;
   title: string;
-  description: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
+  description: string;
   source: string;
+  testCases: TestCase[];
+  acceptanceRate: number;
+  submissions: number;
   tags: string[];
-  testCases: {
-    input: string;
-    output: string;
-    explanation: string;
-  }[];
   constraints?: string;
-  examples?: { input: string; output: string; explanation?: string }[];
+  examples?: TestCase[];
   sampleSolution?: {
     javascript?: string;
     python?: string;
@@ -30,8 +28,6 @@ export interface CodingProblem {
   };
   timeLimit?: number; // in milliseconds
   memoryLimit?: number; // in MB
-  acceptanceRate?: number;
-  submissions?: number;
 }
 
 export interface ContestInfo {
@@ -62,12 +58,12 @@ export interface UserPerformance {
   userId: string;
   problemsSolved: number;
   totalAttempts: number;
-  streak: number; // consecutive days with solved problems
+  streak: number;
   lastActive: Date;
-  averageTime: number; // average time to solve in ms
+  averageTime: number;
   skillLevel: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   badges: UserBadge[];
-  ratingsByTag: Record<string, number>; // e.g. {"arrays": 850, "dynamic-programming": 720}
+  ratingsByTag: Record<string, number>;
   recentSubmissions: UserSubmission[];
 }
 
@@ -126,33 +122,129 @@ export interface TestResults {
   };
 }
 
-// Mock data for initial development
+export interface UserSolvedProblem {
+  problemId: string;
+  solution: string;
+  language: string;
+  solvedAt: Date;
+  executionTime: string;
+}
+
+const defaultExplanation = 'Test case for problem validation';
+
 export const mockProblems: CodingProblem[] = [
   {
-    id: "1",
-    title: "Two Sum",
-    difficulty: "Easy",
-    description: "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
-    source: "LeetCode",
-    tags: ["Array", "Hash Table"],
+    id: 'two-sum',
+    title: 'Two Sum',
+    difficulty: 'Easy',
+    description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+    source: 'LeetCode',
     testCases: [
       {
-        input: "nums = [2,7,11,15], target = 9",
-        output: "[0,1]",
-        explanation: "Because nums[0] + nums[1] == 9, we return [0, 1]."
+        input: 'nums = [2,7,11,15], target = 9',
+        output: '[0,1]',
+        explanation: 'Because nums[0] + nums[1] == 9, we return [0, 1].'
       },
       {
-        input: "nums = [3,2,4], target = 6",
-        output: "[1,2]"
+        input: 'nums = [3,2,4], target = 6',
+        output: '[1,2]',
+        explanation: 'Because nums[1] + nums[2] == 6, we return [1, 2].'
       }
     ],
-    timeLimit: 1000,
-    memoryLimit: 16,
-    acceptanceRate: 47.5,
-    submissions: 12487
+    acceptanceRate: 75,
+    submissions: 1000,
+    tags: ['Array', 'Hash Table']
   },
   {
-    id: "2",
+    id: 'palindrome-number',
+    title: 'Palindrome Number',
+    difficulty: 'Easy',
+    description: 'Given an integer x, return true if x is a palindrome, and false otherwise.',
+    source: 'LeetCode',
+    testCases: [
+      {
+        input: 'x = 121',
+        output: 'true',
+        explanation: '121 reads as 121 from left to right and from right to left.'
+      },
+      {
+        input: 'x = -121',
+        output: 'false',
+        explanation: 'From left to right, it reads -121. From right to left, it becomes 121-. Therefore it is not a palindrome.'
+      }
+    ],
+    acceptanceRate: 80,
+    submissions: 1200,
+    tags: ['Math']
+  },
+  {
+    id: 'longest-substring',
+    title: 'Longest Substring Without Repeating Characters',
+    difficulty: 'Medium',
+    description: 'Given a string s, find the length of the longest substring without repeating characters.',
+    source: 'LeetCode',
+    testCases: [
+      {
+        input: 's = "abcabcbb"',
+        output: '3',
+        explanation: 'The answer is "abc", with the length of 3.'
+      },
+      {
+        input: 's = "bbbbb"',
+        output: '1',
+        explanation: 'The answer is "b", with the length of 1.'
+      }
+    ],
+    acceptanceRate: 70,
+    submissions: 900,
+    tags: ['String', 'Sliding Window', 'Hash Table']
+  },
+  {
+    id: 'add-two-numbers',
+    title: 'Add Two Numbers',
+    difficulty: 'Medium',
+    description: 'You are given two non-empty linked lists representing two non-negative integers. The digits are stored in reverse order, and each of their nodes contains a single digit.',
+    source: 'LeetCode',
+    testCases: [
+      {
+        input: 'l1 = [2,4,3], l2 = [5,6,4]',
+        output: '[7,0,8]',
+        explanation: '342 + 465 = 807'
+      },
+      {
+        input: 'l1 = [0], l2 = [0]',
+        output: '[0]',
+        explanation: '0 + 0 = 0'
+      }
+    ],
+    acceptanceRate: 65,
+    submissions: 800,
+    tags: ['Linked List', 'Math']
+  },
+  {
+    id: 'median-sorted-arrays',
+    title: 'Median of Two Sorted Arrays',
+    difficulty: 'Hard',
+    description: 'Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays.',
+    source: 'LeetCode',
+    testCases: [
+      {
+        input: 'nums1 = [1,3], nums2 = [2]',
+        output: '2.0',
+        explanation: 'Merged array = [1,2,3] and median is 2.'
+      },
+      {
+        input: 'nums1 = [1,2], nums2 = [3,4]',
+        output: '2.5',
+        explanation: 'Merged array = [1,2,3,4] and median is (2 + 3) / 2 = 2.5'
+      }
+    ],
+    acceptanceRate: 45,
+    submissions: 500,
+    tags: ['Array', 'Binary Search', 'Divide and Conquer']
+  },
+  {
+    id: "1",
     title: "Palindrome Number",
     difficulty: "Easy",
     description: "Given an integer x, return true if x is palindrome integer. An integer is a palindrome when it reads the same backward as forward.",
@@ -183,15 +275,18 @@ export const mockProblems: CodingProblem[] = [
     testCases: [
       {
         input: "s = \"()\"",
-        output: "true"
+        output: "true",
+        explanation: "The parentheses are properly matched."
       },
       {
         input: "s = \"()[]{}\"",
-        output: "true"
+        output: "true",
+        explanation: "All brackets are properly matched and closed in the correct order."
       },
       {
         input: "s = \"(]\"",
-        output: "false"
+        output: "false",
+        explanation: "The brackets are not properly matched - a closing square bracket cannot match an opening parenthesis."
       }
     ],
     acceptanceRate: 39.8,
@@ -229,11 +324,13 @@ export const mockProblems: CodingProblem[] = [
     testCases: [
       {
         input: "arrays = [[1,4,5],[1,3,4],[2,6]]",
-        output: "[1,1,2,3,4,4,5,6]"
+        output: "[1,1,2,3,4,4,5,6]",
+        explanation: "Merging all arrays in sorted order results in [1,1,2,3,4,4,5,6]."
       },
       {
         input: "arrays = [[]]",
-        output: "[]"
+        output: "[]",
+        explanation: "An empty array results in an empty merged array."
       }
     ],
     acceptanceRate: 31.2,
@@ -277,15 +374,18 @@ export const mockProblems: CodingProblem[] = [
     testCases: [
       {
         input: "head = [1,2,3,4,5]",
-        output: "[5,4,3,2,1]"
+        output: "[5,4,3,2,1]",
+        explanation: "The linked list is reversed from [1->2->3->4->5] to [5->4->3->2->1]."
       },
       {
         input: "head = [1,2]",
-        output: "[2,1]"
+        output: "[2,1]",
+        explanation: "The linked list is reversed from [1->2] to [2->1]."
       },
       {
         input: "head = []",
-        output: "[]"
+        output: "[]",
+        explanation: "An empty linked list remains empty when reversed."
       }
     ],
     acceptanceRate: 54.3,
@@ -297,6 +397,7 @@ export const mockProblems: CodingProblem[] = [
     difficulty: "Hard",
     description: "Given an array, partition it into two sets such that the absolute difference between their sums is minimum.",
     source: "CodeChef",
+    tags: ["Dynamic Programming", "Array", "Math"],
     testCases: [
       {
         input: "arr = [1, 6, 11, 5]",
@@ -322,15 +423,18 @@ export const mockProblems: CodingProblem[] = [
     testCases: [
       {
         input: "root = [3,9,20,null,null,15,7]",
-        output: "[[3],[9,20],[15,7]]"
+        output: "[[3],[9,20],[15,7]]",
+        explanation: "The binary tree is traversed level by level, resulting in three levels: root [3], second level [9,20], and third level [15,7]."
       },
       {
         input: "root = [1]",
-        output: "[[1]]"
+        output: "[[1]]",
+        explanation: "A single node tree has only one level containing the root node."
       },
       {
         input: "root = []",
-        output: "[]"
+        output: "[]",
+        explanation: "An empty tree results in an empty level order traversal."
       }
     ],
     acceptanceRate: 47.1,
@@ -346,11 +450,13 @@ export const mockProblems: CodingProblem[] = [
     testCases: [
       {
         input: "nums = [2,0,2,1,1,0]",
-        output: "[0,0,1,1,2,2]"
+        output: "[0,0,1,1,2,2]",
+        explanation: "After sorting, all red objects (0s) come first, followed by white objects (1s), then blue objects (2s)."
       },
       {
         input: "nums = [2,0,1]",
-        output: "[0,1,2]"
+        output: "[0,1,2]",
+        explanation: "The array is sorted in-place with one of each color."
       }
     ],
     acceptanceRate: 54.3,
@@ -415,11 +521,13 @@ export const mockProblems: CodingProblem[] = [
       },
       {
         input: '"applepenapple", ["apple", "pen"]',
-        output: 'true'
+        output: 'true',
+        explanation: 'The string can be segmented as "apple pen apple".'
       },
       {
         input: '"catsandog", ["cats", "dog", "sand", "and", "cat"]',
-        output: 'false'
+        output: 'false',
+        explanation: 'The string cannot be segmented into dictionary words.'
       }
     ],
     timeLimit: 1500,
@@ -442,11 +550,13 @@ export const mockProblems: CodingProblem[] = [
       },
       {
         input: "nums = [1]",
-        output: "1"
+        output: "1",
+        explanation: "A single element array has maximum sum equal to that element."
       },
       {
         input: "nums = [5,4,-1,7,8]",
-        output: "23"
+        output: "23",
+        explanation: "The entire array forms the maximum sum subarray."
       }
     ],
     acceptanceRate: 54.3,
@@ -501,11 +611,13 @@ export const mockProblems: CodingProblem[] = [
     testCases: [
       {
         input: "matrix = [[1, 0, 0], [0, 0, 1], [0, 0, 0]]",
-        output: "[[1, 0, 1], [1, 1, 1], [0, 0, 1]]"
+        output: "[[1, 0, 1], [1, 1, 1], [0, 0, 1]]",
+        explanation: "After modification, rows and columns containing 1s are updated."
       },
       {
         input: "matrix = [[0, 0], [0, 0]]",
-        output: "[[0, 0], [0, 0]]"
+        output: "[[0, 0], [0, 0]]",
+        explanation: "No 1s in the matrix, so no modifications needed."
       }
     ],
     acceptanceRate: 54.3,
@@ -548,7 +660,8 @@ export const mockProblems: CodingProblem[] = [
       },
       {
         input: "arr = [900, 1100, 1235], dep = [1000, 1200, 1240]",
-        output: "1"
+        output: "1",
+        explanation: "Only one platform is needed as trains arrive and depart without overlap."
       }
     ],
     acceptanceRate: 43.6,
@@ -643,7 +756,7 @@ export const mockLeaderboard: LeaderboardEntry[] = [
 ];
 
 // Actual service functions to be implemented later with Firebase
-class CodingService {
+export class CodingService {
   async getProblems(): Promise<CodingProblem[]> {
     try {
       // For now, return mock data
@@ -690,13 +803,108 @@ class CodingService {
   async submitSolution(submission: Omit<UserSubmission, 'submittedAt'>): Promise<UserSubmission> {
     const fullSubmission: UserSubmission = {
       ...submission,
-      submittedAt: Date.now()
+      submittedAt: new Date()
     };
     
     // Mock implementation - in real app, would validate against test cases
     console.log("Solution submitted:", fullSubmission);
     
     return fullSubmission;
+  }
+
+  private checkSyntax(code: string, language: string): boolean {
+    // Basic syntax checking
+    try {
+      if (language === 'python') {
+        // Check for proper Python function definition and format
+        const hasProperDef = code.includes('def solve_') || code.includes('def Solution');
+        const hasProperReturn = code.includes('return');
+        const hasProperIndentation = code.includes('    ') || code.includes('\t');
+        return !(hasProperDef && hasProperReturn && hasProperIndentation);
+      } else if (language === 'javascript') {
+        // Check for proper JavaScript function definition and format
+        const hasProperFunction = code.includes('function solve') || code.includes('var Solution');
+        const hasProperReturn = code.includes('return');
+        return !(hasProperFunction && hasProperReturn);
+      }
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  private checkRequiredLogic(code: string, problemTitle: string, language: string): boolean {
+    const lowerCode = code.toLowerCase();
+    const lowerTitle = problemTitle.toLowerCase();
+
+    // First check if the code has the correct function signature format
+    if (language === 'python') {
+      const expectedFuncName = `def solve_${lowerTitle.replace(/\s+/g, '').toLowerCase()}`;
+      if (!code.includes(expectedFuncName)) {
+        return false;
+      }
+    } else if (language === 'javascript') {
+      const expectedFuncName = `function solve${lowerTitle.replace(/\s+/g, '')}`;
+      if (!code.includes(expectedFuncName)) {
+        return false;
+      }
+    }
+
+    // Then check for problem-specific logic
+    switch (lowerTitle) {
+      case 'two sum':
+        return lowerCode.includes('for') && (lowerCode.includes('map') || lowerCode.includes('dict'));
+      case 'valid parentheses':
+        return lowerCode.includes('stack') || lowerCode.includes('array') || lowerCode.includes('list');
+      case 'reverse string':
+        return lowerCode.includes('for') || lowerCode.includes('while') || lowerCode.includes('reverse');
+      case 'maximum subarray':
+        return lowerCode.includes('for') || lowerCode.includes('while') || lowerCode.includes('max');
+      case 'palindrome number':
+        return lowerCode.includes('str') || lowerCode.includes('reverse') || lowerCode.includes('while');
+      default:
+        // For other problems, just ensure basic structure is correct
+        return true;
+    }
+  }
+
+  private getExpectedFunctionName(problemTitle: string, language: string): string {
+    const sanitizedTitle = problemTitle.replace(/\s+/g, '').toLowerCase();
+    if (language === 'python') {
+      return `solve_${sanitizedTitle}`;
+    } else if (language === 'javascript') {
+      return `solve${problemTitle.replace(/\s+/g, '')}`;
+    }
+    return '';
+  }
+
+  private getSolvedProblems(): UserSolvedProblem[] {
+    const solved = localStorage.getItem('solvedProblems');
+    return solved ? JSON.parse(solved) : [];
+  }
+
+  private saveSolvedProblem(problem: UserSolvedProblem) {
+    const solved = this.getSolvedProblems();
+    // Check if problem already exists
+    const index = solved.findIndex(p => p.problemId === problem.problemId);
+    if (index >= 0) {
+      // Update existing solution
+      solved[index] = problem;
+    } else {
+      // Add new solution
+      solved.push(problem);
+    }
+    localStorage.setItem('solvedProblems', JSON.stringify(solved));
+  }
+
+  isProblemSolved(problemId: string): boolean {
+    const solved = this.getSolvedProblems();
+    return solved.some(p => p.problemId === problemId);
+  }
+
+  getSavedSolution(problemId: string): UserSolvedProblem | null {
+    const solved = this.getSolvedProblems();
+    return solved.find(p => p.problemId === problemId) || null;
   }
 
   async runTests(problemId: string, code: string, language: string): Promise<{ 
@@ -711,44 +919,89 @@ class CodingService {
   }> {
     console.log(`Running tests for problem ${problemId} with ${language} code`);
 
-    // Find the problem
+    // Find the problem from mockProblems
     const problem = mockProblems.find(p => p.id === problemId);
+
     if (!problem) {
+      console.error(`Problem not found with ID: ${problemId}`);
       return {
         success: false,
         results: [{
           passed: false,
           input: "",
           expected: "",
-          actual: "Problem not found",
+          actual: "Problem not found - Please try refreshing the page",
+          time: "0ms"
         }]
       };
     }
 
-    // Simulate test results with some randomness
-    const results = problem.testCases.map((testCase, index) => {
-      // Simulate 80% chance of success when there's code
-      const passed = code.length > 10 && Math.random() < 0.8;
+    try {
+      // Wrap the user's code in a class for execution
+      const wrappedCode = language === 'python' ? 
+        `class Solution:\n${code.split('\n').map(line => '    ' + line).join('\n')}\n\nsolution = Solution()` :
+        `class Solution {\n${code}\n}\n\nconst solution = new Solution();`;
+
+      const results = await Promise.all(problem.testCases.map(async testCase => {
+        const startTime = performance.now();
+        try {
+          // Execute the solution with the test case
+          const result = language === 'python' ?
+            await executePythonCode(`${wrappedCode}\nresult = solution.solve_${problem.title.toLowerCase().replace(/\s+/g, '')}(${JSON.stringify(testCase.input)})`) :
+            await executeJavaScriptCode(`${wrappedCode}\nconst result = solution.solve${problem.title.replace(/\s+/g, '')}(${JSON.stringify(testCase.input)});`);
+
+          const endTime = performance.now();
+          const executionTime = Math.round(endTime - startTime);
+
+          return {
+            passed: result === testCase.output,
+            input: testCase.input,
+            expected: testCase.output,
+            actual: result,
+            time: `${executionTime}ms`
+          };
+        } catch (error) {
+          return {
+            passed: false,
+            input: testCase.input,
+            expected: testCase.output,
+            actual: error.message,
+            time: "0ms"
+          };
+        }
+      }));
+
+      const success = results.every(r => r.passed);
       
+      // If all tests pass, store the solution
+      if (success) {
+        const avgExecutionTime = results.reduce((sum, r) => sum + parseInt(r.time || "0"), 0) / results.length;
+        this.saveSolvedProblem({
+          problemId,
+          solution: code,
+          language,
+          solvedAt: new Date(),
+          executionTime: `${avgExecutionTime}ms`
+        });
+      }
+
       return {
-        passed,
-        input: testCase.input,
-        expected: testCase.output,
-        actual: passed ? testCase.output : `Runtime Error: ${Math.random() > 0.5 ? "null pointer exception" : "timeout exceeded"}`,
-        time: `${Math.floor(Math.random() * 200) + 5}ms`
+        success,
+        results
       };
-    });
-
-    // Success is true only if all tests pass
-    const success = results.every(r => r.passed);
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    return {
-      success,
-      results
-    };
+    } catch (error: any) {
+      console.error("Error running tests:", error);
+      return {
+        success: false,
+        results: [{
+          passed: false,
+          input: "",
+          expected: "",
+          actual: error.message,
+          time: "0ms"
+        }]
+      };
+    }
   }
 
   async getUserPerformance(userId: string): Promise<UserPerformance | null> {
@@ -858,6 +1111,94 @@ class CodingService {
     
     // Default: return "Wrong output"
     return "Incorrect result";
+  }
+}
+
+async function executePythonCode(code: string): Promise<string> {
+  try {
+    // Extract input from the test case
+    const match = code.match(/solution\.solve_\w+\((.*)\)/);
+    if (!match) {
+      throw new Error('Invalid code format');
+    }
+    
+    // Parse the input string
+    const inputStr = match[1];
+    let input;
+    try {
+      // Handle different input formats
+      if (inputStr.includes('=')) {
+        // Format: "nums = [1,2], target = 3"
+        const parts = inputStr.split(',').map(p => p.trim());
+        const inputs = {};
+        parts.forEach(part => {
+          const [key, value] = part.split('=').map(s => s.trim());
+          inputs[key] = JSON.parse(value);
+        });
+        input = inputs;
+      } else {
+        // Direct value format
+        input = JSON.parse(inputStr);
+      }
+    } catch (e) {
+      // If JSON.parse fails, use the raw string
+      input = inputStr;
+    }
+
+    // Execute the solution
+    const solution = new Function(`
+      ${code}
+      return String(result);
+    `);
+
+    return solution();
+  } catch (error) {
+    console.error('Python execution error:', error);
+    throw new Error(`Python execution error: ${error.message}`);
+  }
+}
+
+async function executeJavaScriptCode(code: string): Promise<string> {
+  try {
+    // Extract input from the test case
+    const match = code.match(/solution\.solve\w+\((.*)\)/);
+    if (!match) {
+      throw new Error('Invalid code format');
+    }
+    
+    // Parse the input string
+    const inputStr = match[1];
+    let input;
+    try {
+      // Handle different input formats
+      if (inputStr.includes('=')) {
+        // Format: "nums = [1,2], target = 3"
+        const parts = inputStr.split(',').map(p => p.trim());
+        const inputs = {};
+        parts.forEach(part => {
+          const [key, value] = part.split('=').map(s => s.trim());
+          inputs[key] = JSON.parse(value);
+        });
+        input = inputs;
+      } else {
+        // Direct value format
+        input = JSON.parse(inputStr);
+      }
+    } catch (e) {
+      // If JSON.parse fails, use the raw string
+      input = inputStr;
+    }
+
+    // Execute the solution
+    const solution = new Function(`
+      ${code}
+      return String(result);
+    `);
+
+    return solution();
+  } catch (error) {
+    console.error('JavaScript execution error:', error);
+    throw new Error(`JavaScript execution error: ${error.message}`);
   }
 }
 

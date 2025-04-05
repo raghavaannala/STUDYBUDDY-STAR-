@@ -62,6 +62,13 @@ export default function HomePage() {
           </a>
           
           <a
+            href="/code-buddy"
+            className="bg-orange-500 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-orange-600 transition-colors"
+          >
+            Practice LeetCode →
+          </a>
+          
+          <a
             href="/modules"
             className="bg-zinc-800 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-zinc-700 transition-colors"
           >

@@ -401,7 +401,7 @@ const StudyModules = () => {
 
   // If a module is selected, show the module detail view
   if (selectedModule) {
-    return (
+  return (
       <ModuleDetailView 
         module={selectedModule} 
         onBack={() => setSelectedModule(null)} 
@@ -603,17 +603,17 @@ const ModuleCard = ({ module, onStart }: { module: Module, onStart: () => void }
               +{module.tags.length - 3} more
             </UIBadge>
           )}
-        </div>
+                  </div>
         
         <div className="flex items-center text-xs text-muted-foreground space-x-3 mb-3">
           <div className="flex items-center">
             <Badge className="h-3 w-3 mr-1 text-purple-400" />
             <span>{module.difficulty}</span>
-          </div>
+                </div>
           <div className="flex items-center">
             <Clock className="h-3 w-3 mr-1 text-purple-400" />
             <span>{module.estimatedTime}</span>
-          </div>
+              </div>
           <div className="flex items-center">
             <UserCheck className="h-3 w-3 mr-1 text-purple-400" />
             <span>{module.completionRate}% completion</span>
@@ -624,9 +624,9 @@ const ModuleCard = ({ module, onStart }: { module: Module, onStart: () => void }
           <div className="flex justify-between text-xs mb-1">
             <span>Progress</span>
             <span>0%</span>
-          </div>
+                  </div>
           <Progress value={0} className="h-2" />
-        </div>
+                </div>
       </div>
       
       <div className="flex justify-between items-center mt-2">
@@ -637,7 +637,7 @@ const ModuleCard = ({ module, onStart }: { module: Module, onStart: () => void }
           <Star className="h-3 w-3 fill-amber-400 stroke-amber-400" />
           <Star className="h-3 w-3 fill-transparent stroke-amber-400" />
           <span className="text-xs ml-1 text-muted-foreground">({Math.round(module.popularity / 10)})</span>
-        </div>
+                  </div>
         <Button 
           size="sm" 
           className="text-xs px-3 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 group"
@@ -646,8 +646,8 @@ const ModuleCard = ({ module, onStart }: { module: Module, onStart: () => void }
           <span>Start</span>
           <Zap className="ml-1 h-3 w-3 group-hover:scale-110 transition-transform" />
         </Button>
-      </div>
-    </GlassMorphCard>
+                </div>
+              </GlassMorphCard>
   );
 };
 
@@ -981,7 +981,7 @@ const ModuleDetailView = ({ module, onBack }: { module: Module, onBack: () => vo
                 >
                   Save Note
                 </Button>
-              </div>
+            </div>
             </div>
             
             <div className="space-y-3">

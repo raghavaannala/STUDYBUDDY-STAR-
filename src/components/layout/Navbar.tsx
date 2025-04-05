@@ -245,13 +245,14 @@ export default function Navbar() {
           </div>
 
           {/* Desktop menu - Hide on mobile */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-4 overflow-x-auto scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-slate-800/30 px-2" style={{ maxWidth: 'calc(100vw - 400px)' }}>
             {navLinks.map((link, index) => (
               <NavbarLink 
                 key={index}
                 to={link.path}
                 isActive={location.pathname === link.path}
                 onClick={() => {}}
+                className="whitespace-nowrap"
               >
                 <span className="flex items-center">
                   {link.icon}

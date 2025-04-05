@@ -100,6 +100,11 @@ const academicSubjects = [
   "algorithms", "web development", "machine learning"
 ];
 
+interface StoredSuggestion {
+  text: string;
+  timestamp: number;
+}
+
 export function AIBuddyAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -109,9 +114,9 @@ export function AIBuddyAssistant() {
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [foundersInfo, setFoundersInfo] = useState<FoundersData>(defaultFoundersData);
+  const [storedSuggestions, setStoredSuggestions] = useState<StoredSuggestion[]>([]);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -201,34 +206,41 @@ export function AIBuddyAssistant() {
     }
   }, [messages]);
 
+  // Process suggestions from other components
   useEffect(() => {
-    let attentionInterval: NodeJS.Timeout;
-    
-    if (!isOpen && !isDragging) {
-      attentionInterval = setInterval(() => {
-        const buttonEl = document.querySelector('.ai-buddy-button');
-        if (buttonEl) {
-          buttonEl.classList.add('animate-bounce-once');
-          setTimeout(() => {
-            buttonEl.classList.remove('animate-bounce-once');
-          }, 1000);
-        }
-      }, 8000);
+    if (aiSuggestion && isAIActive) {
+      const newSuggestion: StoredSuggestion = {
+        text: aiSuggestion,
+        timestamp: Date.now()
+      };
+      
+      setStoredSuggestions(prev => {
+        // Keep only suggestions from the last 30 minutes
+        const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
+        const recentSuggestions = prev.filter(s => s.timestamp > thirtyMinutesAgo);
+        return [...recentSuggestions, newSuggestion];
+      });
     }
-    
-    return () => {
-      if (attentionInterval) clearInterval(attentionInterval);
-    };
-  }, [isOpen, isDragging]);
+  }, [aiSuggestion, isAIActive]);
 
+  // Show stored suggestions when user opens the assistant
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      setMessages([
-        { 
-          role: 'assistant', 
-          content: '✨ Hello there! I\'m your magical study assistant. I can help you navigate the app, explain features, or answer academic questions! Try asking about "code help", "study groups" or any academic subject. ✨' 
-        }
-      ]);
+      if (storedSuggestions.length > 0) {
+        setMessages([
+          { 
+            role: 'assistant', 
+            content: '✨ Hello! I have some suggestions that might help you: ✨' 
+          }
+        ]);
+      } else {
+        setMessages([
+          { 
+            role: 'assistant', 
+            content: '✨ Hello! I\'m your AI assistant. How can I help you today? ✨' 
+          }
+        ]);
+      }
       
       // Show the guide for new sessions
       const hasSeenGuide = localStorage.getItem('hasSeenAssistantGuide');
@@ -237,7 +249,7 @@ export function AIBuddyAssistant() {
         localStorage.setItem('hasSeenAssistantGuide', 'true');
       }
     }
-  }, [isOpen, messages.length]);
+  }, [isOpen, messages.length, storedSuggestions.length]);
 
   useEffect(() => {
     // Hide assistant when AI is disabled
@@ -246,19 +258,6 @@ export function AIBuddyAssistant() {
     }
   }, [isAIActive, isOpen]);
 
-  useEffect(() => {
-    // Process suggestions from other components
-    if (aiSuggestion && isAIActive && !isOpen) {
-      setIsOpen(true);
-      setTimeout(() => {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', content: aiSuggestion }
-        ]);
-      }, 500);
-    }
-  }, [aiSuggestion, isAIActive]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -266,8 +265,7 @@ export function AIBuddyAssistant() {
     const userMessage = input.trim();
     setInput('');
     setIsLoading(true);
-    setShowSuggestions(false);
-    setShowGuide(false); // Hide guide when user sends a message
+    setShowGuide(false);
 
     // Check if user is asking for help with the assistant
     const lowerCaseMessage = userMessage.toLowerCase();
@@ -335,46 +333,7 @@ export function AIBuddyAssistant() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
 
     try {
-      // Check for navigation or feature request keywords first
-      const lowerCaseMessage = userMessage.toLowerCase();
-      
-      // Navigation commands
-      if (lowerCaseMessage.includes("go to") || lowerCaseMessage.includes("navigate to") || lowerCaseMessage.includes("open")) {
-        for (const [feature, info] of Object.entries(appFeatures)) {
-          if (lowerCaseMessage.includes(feature)) {
-            // Navigate to the first page in the feature's pages array
-            navigate(info.pages[0]);
-            
-            setMessages(prev => [...prev, { 
-              role: 'assistant', 
-              content: `✨ I've opened the ${feature} feature for you! Let me know if you need any help using it. ✨` 
-            }]);
-            
-            setIsLoading(false);
-            return;
-          }
-        }
-      }
-      
-      // Help with app features
-      if (lowerCaseMessage.includes("how to use") || lowerCaseMessage.includes("explain feature") || 
-          lowerCaseMessage.includes("what is") || lowerCaseMessage.includes("how does")) {
-        for (const [feature, info] of Object.entries(appFeatures)) {
-          if (lowerCaseMessage.includes(feature)) {
-            setMessages(prev => [...prev, { 
-              role: 'assistant', 
-              content: `✨ The ${feature} feature lets you ${info.description}. Would you like me to open it for you? Just say "go to ${feature}" and I'll take you there! ✨` 
-            }]);
-            
-            setIsLoading(false);
-            return;
-          }
-        }
-      }
-
-      // Regular response using Gemini
       const response = await getChatResponse(userMessage);
-      
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (error) {
       console.error('Chat error:', error);
@@ -400,7 +359,6 @@ export function AIBuddyAssistant() {
       return;
     }
     
-    console.log("Toggle chat clicked! Current state:", { isOpen, isMinimized });
     if (isMinimized) {
       setIsMinimized(false);
     } else {
@@ -438,24 +396,6 @@ export function AIBuddyAssistant() {
       setDragOffset({ x: offsetX, y: offsetY });
       setIsDragging(true);
     }
-  };
-
-  const handleInputFocus = () => {
-    setShowSuggestions(true);
-  };
-
-  const handleInputBlur = () => {
-    // Add a small delay before hiding suggestions to allow for clicking them
-    setTimeout(() => setShowSuggestions(false), 200);
-  };
-
-  const handleSuggestionClick = (suggestion: string) => {
-    setInput(suggestion);
-    // Auto-submit the suggestion
-    setTimeout(() => {
-      const form = document.querySelector('form') as HTMLFormElement;
-      if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
-    }, 100);
   };
 
   return (
@@ -619,6 +559,25 @@ export function AIBuddyAssistant() {
                       </div>
                     </div>
                   ))}
+                  
+                  {/* Display stored suggestions as clickable buttons */}
+                  {messages.length === 1 && storedSuggestions.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-4">
+                      {storedSuggestions.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setInput(suggestion.text);
+                            setStoredSuggestions(prev => prev.filter(s => s.text !== suggestion.text));
+                          }}
+                          className="text-left p-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-sm text-slate-200 transition-colors border border-purple-500/20 hover:border-purple-500/30 cursor-pointer"
+                        >
+                          {suggestion.text}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
                   {isLoading && (
                     <div className="flex justify-start">
                       <div className="max-w-[80%] rounded-lg p-3 text-sm bg-slate-800 text-slate-300 border border-purple-500/10">
@@ -635,82 +594,23 @@ export function AIBuddyAssistant() {
             </div>
 
             <form onSubmit={handleSubmit} className="bg-slate-900 p-3 border-t border-slate-800">
-              <div className="relative">
-                <div className="flex gap-2">
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask me anything..."
-                    disabled={isLoading}
-                    className="flex-1 text-sm bg-slate-800 border-purple-500/30 focus:border-purple-400"
-                    onFocus={handleInputFocus}
-                    onBlur={handleInputBlur}
-                  />
-                  <Button 
-                    type="submit" 
-                    size="icon"
-                    disabled={isLoading || !input.trim()}
-                    className="bg-purple-600 hover:bg-purple-700"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {showSuggestions && (
-                  <div className="absolute bottom-full left-0 right-0 bg-slate-800 border border-slate-700 rounded-md max-h-40 overflow-auto z-10 mb-2">
-                    <div className="p-2 border-b border-slate-700 bg-slate-900/50">
-                      <span className="text-xs text-slate-400">App Features:</span>
-                    </div>
-                    {Object.keys(appFeatures).map((feature) => (
-                      <div 
-                        key={feature}
-                        className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
-                        onClick={() => handleSuggestionClick(`How do I use the ${feature} feature?`)}
-                      >
-                        How do I use the {feature} feature?
-                      </div>
-                    ))}
-                    <div className="p-2 border-b border-slate-700 border-t bg-slate-900/50">
-                      <span className="text-xs text-slate-400">Academic Help:</span>
-                    </div>
-                    {academicSubjects.slice(0, 3).map((subject) => (
-                      <div 
-                        key={subject}
-                        className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
-                        onClick={() => handleSuggestionClick(`Help me with ${subject}`)}
-                      >
-                        Help me with {subject}
-                      </div>
-                    ))}
-                    <div className="p-2 border-b border-slate-700 border-t bg-slate-900/50">
-                      <span className="text-xs text-slate-400">About Us:</span>
-                    </div>
-                    <div 
-                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
-                      onClick={() => handleSuggestionClick("Who are the founders of StudyBuddy?")}
-                    >
-                      Who are the founders of StudyBuddy?
-                    </div>
-                    <div 
-                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
-                      onClick={() => handleSuggestionClick("What is StudyBuddy's mission?")}
-                    >
-                      What is StudyBuddy's mission?
-                    </div>
-                    <div 
-                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
-                      onClick={() => handleSuggestionClick("Tell me about Raghava's role")}
-                    >
-                      Tell me about Raghava's role
-                    </div>
-                    <div 
-                      className="px-3 py-1.5 text-sm cursor-pointer hover:bg-purple-500/20 text-slate-300"
-                      onClick={() => handleSuggestionClick("What does Vikas do as Chief Evangelist?")}
-                    >
-                      What does Vikas do as Chief Evangelist?
-                    </div>
-                  </div>
-                )}
+              <div className="flex gap-2">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask me anything..."
+                  disabled={isLoading}
+                  className="flex-1 text-sm bg-slate-800 border-purple-500/30 focus:border-purple-400"
+                  type="text"
+                />
+                <Button 
+                  type="submit" 
+                  size="icon"
+                  disabled={isLoading || !input.trim()}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
             </form>
           </Card>
