@@ -11,11 +11,15 @@ export interface TestCase {
 export interface CodingProblem {
   id: string;
   title: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
   description: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
   source: string;
   tags: string[];
-  testCases: TestCase[];
+  testCases: {
+    input: string;
+    output: string;
+    explanation: string;
+  }[];
   constraints?: string;
   examples?: { input: string; output: string; explanation?: string }[];
   sampleSolution?: {
@@ -33,17 +37,13 @@ export interface CodingProblem {
 export interface ContestInfo {
   id: string;
   title: string;
-  platform: string;
-  description?: string;
-  startTime: string;
-  duration: number; // in minutes
+  description: string;
+  startDate: string;
+  endDate: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  url?: string;
-  problems?: string[]; // IDs of problems
   registered?: boolean;
-  participants?: number;
-  prizes?: string[];
-  sponsors?: string[];
+  participants: number;
+  problems: number;
 }
 
 export interface UserSubmission {
@@ -582,39 +582,35 @@ export const mockContests: ContestInfo[] = [
   {
     id: "c1",
     title: "Weekly Contest 345",
-    platform: "LeetCode",
     description: "Solve 4 algorithmic problems within 90 minutes",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days from now
-    duration: 90,
+    startDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days from now
+    endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3 + 90 * 60 * 1000).toISOString(), // 90 minutes from now
     difficulty: "Intermediate",
-    problems: ["1", "3", "4", "6"],
+    registered: true,
     participants: 2580,
-    prizes: ["LeetCoin Rewards", "Global Ranking Points"]
+    problems: 4
   },
   {
     id: "c2",
     title: "CodeChef Starters 100",
-    platform: "CodeChef",
     description: "Beginner-friendly contest with prizes for top performers",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5).toISOString(), // 5 days from now
-    duration: 120,
+    startDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5).toISOString(), // 5 days from now
+    endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5 + 120 * 60 * 1000).toISOString(), // 120 minutes from now
     difficulty: "Beginner",
-    url: "https://codechef.com/contests",
+    registered: true,
     participants: 1890,
-    prizes: ["Cash Rewards", "Exclusive Badges"]
+    problems: 4
   },
   {
     id: "c3",
     title: "Google Kickstart",
-    platform: "Google",
     description: "Showcase your skills and get noticed by Google",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 24 * 10).toISOString(), // 10 days from now
-    duration: 180,
+    startDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 10).toISOString(), // 10 days from now
+    endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 10 + 180 * 60 * 1000).toISOString(), // 180 minutes from now
     difficulty: "Advanced",
-    url: "https://codingcompetitions.withgoogle.com",
+    registered: true,
     participants: 5230,
-    prizes: ["Google Merchandise", "Potential Interview Opportunities"],
-    sponsors: ["Google Cloud", "Android"]
+    problems: 4
   }
 ];
 
