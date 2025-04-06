@@ -144,7 +144,7 @@ export function CodeDiploMate() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <div className="container mx-auto p-4 space-y-6 code-diplomat-container">
       <div className="flex justify-between items-center">
         <div className="space-y-2">
           <h2 className="text-2xl font-bold">CodeDiploMate</h2>
@@ -166,7 +166,7 @@ export function CodeDiploMate() {
             onChange={(e) => setPrompt(e.target.value)}
             className="h-32 font-mono"
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               onClick={handleGenerateCode}
               disabled={isLoading}
@@ -199,10 +199,10 @@ export function CodeDiploMate() {
         </div>
 
         {output && (
-          <Card className="p-4 space-y-6">
+          <Card className="p-4 space-y-6 code-output">
             <div>
               <h3 className="font-medium mb-2">Generated Code:</h3>
-              <div className="rounded-lg overflow-hidden">
+              <div className="rounded-lg overflow-hidden code-syntax-highlighter">
                 <SyntaxHighlighter
                   language={language}
                   style={oneDark}

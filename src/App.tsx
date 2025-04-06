@@ -46,11 +46,11 @@ if (typeof document !== 'undefined') {
   if (!existingViewport) {
     const viewport = document.createElement('meta');
     viewport.name = 'viewport';
-    viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover';
+    viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
     document.head.appendChild(viewport);
   } else {
     // Update existing viewport
-    existingViewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover');
+    existingViewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
   }
 }
 
@@ -114,6 +114,24 @@ const App = () => {
     
     // Add mobile touch feedback
     document.body.addEventListener('touchstart', function(){}, {passive: true});
+    
+    // Fix for iOS Safari 100vh issue
+    const setVhVariable = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+    
+    // Set on initial load
+    setVhVariable();
+    
+    // Update on resize and orientation change
+    window.addEventListener('resize', setVhVariable);
+    window.addEventListener('orientationchange', setVhVariable);
+    
+    return () => {
+      window.removeEventListener('resize', setVhVariable);
+      window.removeEventListener('orientationchange', setVhVariable);
+    };
   }, []);
 
   return (
@@ -129,6 +147,7 @@ const App = () => {
                     backgroundColor: "#1e293b", 
                     minHeight: "calc(var(--vh, 1vh) * 100)",
                     width: "100%",
+                    maxWidth: "100vw",
                     margin: 0,
                     padding: 0,
                     overflow: "hidden",
@@ -136,7 +155,7 @@ const App = () => {
                   }}>
                     <Navbar />
                     <AIPageListener />
-                    <main className="pt-16 pb-20 md:pb-12 min-h-[calc(100vh-4rem)]">
+                    <main className="pt-16 pb-20 md:pb-12 min-h-[calc(var(--vh, 1vh) * 100 - 4rem)] overflow-x-hidden">
                       <Routes>
                         <Route path="/" element={<Index />} />
                         <Route path="/study" element={<Study />} />
@@ -182,21 +201,5 @@ const App = () => {
     </QueryClientProvider>
   );
 };
-
-// Calculate correct viewport height for mobile browsers
-if (typeof window !== 'undefined') {
-  // Fix for mobile viewport height issues with Safari and other mobile browsers
-  const setVhVariable = () => {
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-  };
-  
-  // Set on initial load
-  setVhVariable();
-  
-  // Update on resize and orientation change
-  window.addEventListener('resize', setVhVariable);
-  window.addEventListener('orientationchange', setVhVariable);
-}
 
 export default App;

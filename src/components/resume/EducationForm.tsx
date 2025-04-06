@@ -8,7 +8,13 @@ import {
   Card, 
   CardContent,
   IconButton,
-  Divider
+  Divider,
+  Alert,
+  Tooltip,
+  Fade,
+  Chip,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -17,6 +23,66 @@ import SchoolIcon from '@mui/icons-material/School';
 import DateRangeIcon from '@mui/icons-material/DateRange';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import GradeIcon from '@mui/icons-material/Grade';
+import InfoIcon from '@mui/icons-material/Info';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import { styled } from '@mui/material/styles';
+
+// Styled components
+const StyledCard = styled(Card)(({ theme }) => ({
+  transition: 'all 0.3s ease',
+  border: '1px solid rgba(255, 255, 255, 0.1)',
+  boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
+  borderRadius: '12px',
+  backgroundColor: 'rgba(30, 41, 59, 0.7)',
+  '&:hover': {
+    boxShadow: '0 8px 25px rgba(147, 51, 234, 0.2)',
+    transform: 'translateY(-3px)',
+  },
+}));
+
+const GlowButton = styled(Button)(({ theme }) => ({
+  borderRadius: '12px',
+  padding: '10px 24px',
+  fontWeight: 'bold',
+  textTransform: 'none',
+  transition: 'all 0.3s ease',
+  position: 'relative',
+  overflow: 'hidden',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: '-2px',
+    left: '-2px',
+    right: '-2px',
+    bottom: '-2px',
+    zIndex: -1,
+    background: 'linear-gradient(45deg, #9333EA, #4F46E5, #9333EA)',
+    backgroundSize: '200% 200%',
+    animation: 'glowing 3s linear infinite',
+    borderRadius: '14px',
+    opacity: 0,
+    transition: 'opacity 0.3s ease',
+  },
+  '&:hover::before': {
+    opacity: 1,
+  },
+  '&:hover': {
+    boxShadow: '0 6px 20px rgba(124, 58, 237, 0.4)',
+    transform: 'translateY(-2px)'
+  },
+  '@keyframes glowing': {
+    '0%': { backgroundPosition: '0% 50%' },
+    '50%': { backgroundPosition: '100% 50%' },
+    '100%': { backgroundPosition: '0% 50%' }
+  }
+}));
+
+const AnimatedBox = styled(Box)(({ theme }) => ({
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+  },
+}));
 
 interface Education {
   id: string;
@@ -52,6 +118,7 @@ const EducationForm: React.FC<EducationFormProps> = ({ data, onSave }) => {
     institution: false,
     graduationDate: false,
   });
+  const [showNoEducationAlert, setShowNoEducationAlert] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -135,16 +202,41 @@ const EducationForm: React.FC<EducationFormProps> = ({ data, onSave }) => {
     onSave(educations);
   };
 
+  const handleSkip = () => {
+    onSave([]);
+  };
+
   return (
     <form onSubmit={handleSubmit}>
-      <Typography variant="h6" gutterBottom>
-        Education
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6">
+          Education
+        </Typography>
+        <Tooltip title="Adding your education helps make your resume more comprehensive and ATS-friendly">
+          <InfoIcon color="info" sx={{ cursor: 'pointer' }} />
+        </Tooltip>
+      </Box>
+      
+      {showNoEducationAlert && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 3 }}
+          onClose={() => setShowNoEducationAlert(false)}
+        >
+          Please add at least one education entry or click "Skip This Section" if you have no education to add
+        </Alert>
+      )}
+
+      <Alert severity="info" sx={{ mb: 3 }}>
+        <Typography variant="body2">
+          <strong>ATS Tip:</strong> Include relevant coursework and achievements that align with the job requirements for better ATS matching
+        </Typography>
+      </Alert>
 
       {/* Education input form */}
       <Card variant="outlined" sx={{ mb: 3, borderColor: '#e0e0e0' }}>
         <CardContent>
-          <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
             <SchoolIcon sx={{ mr: 1 }} />
             {isEditing ? 'Edit Education' : 'Add Education'}
           </Typography>
@@ -247,6 +339,7 @@ const EducationForm: React.FC<EducationFormProps> = ({ data, onSave }) => {
                   color={isEditing ? "secondary" : "primary"}
                   onClick={handleAddEducation}
                   startIcon={isEditing ? <EditIcon /> : <AddIcon />}
+                  sx={{ mt: 2 }}
                 >
                   {isEditing ? 'Update Education' : 'Add Education'}
                 </Button>
@@ -256,11 +349,36 @@ const EducationForm: React.FC<EducationFormProps> = ({ data, onSave }) => {
         </CardContent>
       </Card>
 
+      {/* Instructions card */}
+      {educations.length === 0 && (
+        <Card variant="outlined" sx={{ mb: 3, borderLeft: '4px solid #4a90e2', bgcolor: 'rgba(74, 144, 226, 0.05)' }}>
+          <CardContent>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+              <InfoIcon sx={{ mr: 1, color: '#4a90e2' }} />
+              How to add your education
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              1. Fill out the form above with your education details
+            </Typography>
+            <Typography variant="body2">
+              2. Click the <strong>Add Education</strong> button to save that entry
+            </Typography>
+            <Typography variant="body2">
+              3. Repeat for each degree or certification you want to include
+            </Typography>
+            <Typography variant="body2">
+              4. Click <strong>Continue</strong> when you've added all your education
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+
       {/* List of education entries */}
       {educations.length > 0 && (
         <>
-          <Typography variant="subtitle1" gutterBottom>
-            Your Education
+          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+            <SchoolIcon sx={{ mr: 1 }} />
+            Your Education ({educations.length})
           </Typography>
           
           {educations.map((edu) => (
@@ -285,7 +403,7 @@ const EducationForm: React.FC<EducationFormProps> = ({ data, onSave }) => {
                     )}
                   </Box>
                   <Box>
-                    <IconButton onClick={() => handleEditEducation(edu)} size="small">
+                    <IconButton onClick={() => handleEditEducation(edu)} size="small" color="primary">
                       <EditIcon />
                     </IconButton>
                     <IconButton onClick={() => handleDeleteEducation(edu.id)} size="small" color="error">
@@ -310,21 +428,29 @@ const EducationForm: React.FC<EducationFormProps> = ({ data, onSave }) => {
           }}
         >
           <Typography variant="body1" color="textSecondary">
-            No education added yet. Add your educational background to create a comprehensive resume.
+            No education added yet. Use the form above to add your educational background.
           </Typography>
         </Box>
       )}
       
       <Divider sx={{ my: 3 }} />
 
-      <Box display="flex" justifyContent="flex-end">
+      <Box display="flex" justifyContent="space-between">
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={handleSkip}
+          sx={{ borderRadius: 2 }}
+        >
+          Skip This Section
+        </Button>
         <Button
           type="submit"
           variant="contained"
           color="primary"
           size="large"
           sx={{ borderRadius: 2, px: 4 }}
-          disabled={educations.length === 0}
+          endIcon={<ArrowForwardIcon />}
         >
           Continue
         </Button>

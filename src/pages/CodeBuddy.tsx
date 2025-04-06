@@ -871,51 +871,69 @@ export default function CodeBuddy() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Set initial loading state to true
   const [error, setError] = useState<string | null>(null);
   const [selectedProblem, setSelectedProblem] = useState<PageCodingProblem | null>(null);
-  const [solution, setSolution] = useState(() => {
-    // Initialize from localStorage if available
-    if (typeof window !== 'undefined') {
-      const savedSolution = localStorage.getItem('codeBuddySolution');
-      return savedSolution || "";
-    }
-    return "";
-  });
-  const [selectedLanguage, setSelectedLanguage] = useState(() => {
-    // Initialize from localStorage if available
-    if (typeof window !== 'undefined') {
-      const savedLanguage = localStorage.getItem('codeBuddyLanguage');
-      return savedLanguage || "python";
-    }
-    return "python";
-  });
+  const [solution, setSolution] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("python");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRunningTests, setIsRunningTests] = useState(false);
   const [testResults, setTestResults] = useState<any>(null);
   const [solvedProblems, setSolvedProblems] = useState<Set<string>>(new Set());
   const [codeTemplate, setCodeTemplate] = useState<CodeTemplate | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const { toast } = useToast();
   const { user } = useAuth();
   
+  // Initialize from localStorage after component mounts
+  useEffect(() => {
+    try {
+      const savedSolution = localStorage.getItem('codeBuddySolution');
+      if (savedSolution) setSolution(savedSolution);
+      
+      const savedLanguage = localStorage.getItem('codeBuddyLanguage');
+      if (savedLanguage) setSelectedLanguage(savedLanguage);
+      
+      setIsInitialized(true);
+    } catch (error) {
+      console.error("Error initializing from localStorage:", error);
+      // Continue with defaults if localStorage fails
+      setIsInitialized(true);
+    }
+  }, []);
+  
   // Update template when problem or language changes
   useEffect(() => {
-    if (selectedProblem) {
-      const template = getCodeTemplate(selectedProblem, selectedLanguage);
-      setCodeTemplate(template);
-      
-      const savedSolution = localStorage.getItem(`codeBuddySolution_${selectedProblem.id}`);
-      if (savedSolution) {
-        setSolution(savedSolution);
-      } else {
-        setSolution(template.defaultCode);
+    if (selectedProblem && isInitialized) {
+      try {
+        const template = getCodeTemplate(selectedProblem, selectedLanguage);
+        setCodeTemplate(template);
+        
+        const savedSolution = localStorage.getItem(`codeBuddySolution_${selectedProblem.id}`);
+        if (savedSolution) {
+          setSolution(savedSolution);
+        } else {
+          setSolution(template.defaultCode);
+        }
+      } catch (error) {
+        console.error("Error updating code template:", error);
+        // Set a basic template as fallback
+        setCodeTemplate({
+          template: "",
+          defaultCode: "# Write your solution here\n",
+          readOnlyRanges: [],
+          startingLine: 1,
+          endLine: 2
+        });
       }
     }
-  }, [selectedProblem, selectedLanguage]);
+  }, [selectedProblem, selectedLanguage, isInitialized]);
   
   // Fetch problems and contests
   useEffect(() => {
+    if (!isInitialized) return;
+    
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
@@ -931,10 +949,22 @@ export default function CodeBuddy() {
           console.log('CodeBuddy: About to fetch contests...');
           const contestsData = await codingService.getContests();
           console.log('CodeBuddy: Contests fetched:', contestsData?.length);
-          setContests(contestsData || []);
+          if (Array.isArray(contestsData)) {
+            setContests(contestsData);
+          } else {
+            console.warn('CodeBuddy: Contests data is not an array:', contestsData);
+            setContests([]);
+          }
         } catch (contestError) {
           console.error("Error fetching contests:", contestError);
           setContests([]);
+        }
+        
+        // Load solved problems data
+        try {
+          loadSolvedProblems();
+        } catch (err) {
+          console.error("Error loading solved problems:", err);
         }
         
       } catch (error) {
@@ -956,7 +986,43 @@ export default function CodeBuddy() {
     return () => {
       console.log('CodeBuddy: Component unmounting');
     };
-  }, [toast]);
+  }, [toast, isInitialized]);
+  
+  // Define loadSolvedProblems function to load user's solved problems from localStorage
+  const loadSolvedProblems = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const solvedProblemsData = localStorage.getItem('codeBuddySolvedProblems');
+        if (solvedProblemsData) {
+          const solvedIds = JSON.parse(solvedProblemsData);
+          if (Array.isArray(solvedIds)) {
+            setSolvedProblems(new Set(solvedIds));
+          }
+        }
+        
+        // Also load any individually marked problems
+        const newSolved = new Set<string>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('codeBuddySolution_') && localStorage.getItem(key)) {
+            const problemId = key.replace('codeBuddySolution_', '');
+            newSolved.add(problemId);
+          }
+        }
+        
+        if (newSolved.size > 0) {
+          setSolvedProblems(prev => {
+            const updated = new Set(prev);
+            newSolved.forEach(id => updated.add(id));
+            return updated;
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading solved problems:", error);
+      // Continue with empty set if there's an error
+    }
+  };
   
   const isTwoSumProblem = (problem: PageCodingProblem) => {
     return problem.id === 'two-sum' || problem.title.toLowerCase().includes('two sum');
@@ -1430,183 +1496,184 @@ export default function CodeBuddy() {
   // If a problem is selected and in editor mode, show the coding interface with CodeChef-style execution
   if (selectedProblem) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
-        <div className="flex items-center mb-6">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="mr-2"
-            onClick={() => {
-              setSelectedProblem(null);
-              setSolution("");
-              setTestResults(null);
-            }}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to problems
-          </Button>
-          
-          <h2 className="text-2xl font-bold">{selectedProblem.title}</h2>
-          <div className="ml-3">
-            {renderProblemDifficulty(selectedProblem.difficulty)}
-          </div>
-          
-          {solvedProblems.has(selectedProblem.id) && (
-            <Badge variant="outline" className="ml-3 bg-green-500/20 text-green-400 border-green-500/30 flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" />
-              Solved
-            </Badge>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-1 mb-4">
-          {selectedProblem.tags && selectedProblem.tags.map(tag => (
-            <Badge key={tag} variant="outline" className="text-xs bg-purple-950/30">
-              {tag}
-            </Badge>
-          ))}
-          <Badge variant="outline" className="text-xs bg-blue-950/30">
-            {selectedProblem.source}
-          </Badge>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-9 gap-6">
-          {/* Left side - Problem description and test cases */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Problem Description</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose prose-invert max-w-none">
-                  <p>{selectedProblem.description}</p>
-                  <div className="mt-3">
-                    <p className="text-sm">Format: CodeChef-style</p>
-                    <p className="text-sm text-gray-400">
-                      Input: <code>[2,7,11,15] 9</code><br/>
-                      Output: <code>0 1</code>
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      <div className="min-h-screen bg-background pt-16 code-buddy-container pb-20">
+        <Container maxWidth="xl" className="py-8 px-2 sm:px-4">
+          <div className="flex items-center mb-6">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="mr-2"
+              onClick={() => {
+                setSelectedProblem(null);
+                setSolution("");
+                setTestResults(null);
+              }}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to problems
+            </Button>
             
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Test Cases</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {selectedProblem.testCases && selectedProblem.testCases.map((testCase, index) => (
-                    <div key={index} className="rounded-md bg-gray-800/50 p-4 text-sm">
-                      <h4 className="text-sm font-medium mb-2">Test Case {index + 1}</h4>
-                      <div className="mb-2">
-                        <span className="text-gray-400">Input:</span> 
-                        <code className="text-xs bg-gray-700 p-1 rounded ml-2 block mt-1 whitespace-pre-wrap">{testCase.input}</code>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Expected Output:</span> 
-                        <code className="text-xs bg-gray-700 p-1 rounded ml-2 block mt-1 whitespace-pre-wrap">{testCase.output}</code>
-                      </div>
-                      {testCase.explanation && (
-                        <div className="mt-3 text-xs text-gray-400 border-t border-gray-700 pt-2">
-                          <span className="font-medium">Explanation:</span> {testCase.explanation}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <h2 className="text-2xl font-bold">{selectedProblem.title}</h2>
+            <div className="ml-3">
+              {renderProblemDifficulty(selectedProblem.difficulty)}
+            </div>
             
-            {/* Test Results Section */}
-            {testResults && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    Test Results
-                    {testResults.success ? (
-                      <CheckCircle2 className="ml-2 h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircle className="ml-2 h-5 w-5 text-red-500" />
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4 max-h-96 overflow-auto">
-                    {testResults.results.map((result: any, index: number) => (
-                      <div 
-                        key={index} 
-                        className={`rounded-md ${result.passed ? 'bg-green-900/20 border border-green-500/30' : 'bg-red-900/20 border border-red-500/30'} p-3 text-sm`}
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className={`text-sm font-medium ${result.passed ? 'text-green-400' : 'text-red-400'}`}>
-                            Test Case {index + 1}: {result.passed ? 'PASSED' : 'FAILED'}
-                          </span>
-                          {result.time && (
-                            <span className="text-xs text-gray-400">
-                              {result.time}
-                            </span>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-xs">
-                            <span className="text-gray-400">Input:</span> 
-                            <code className="ml-2 bg-gray-800 p-1 rounded block mt-1">{result.input}</code>
-                          </div>
-                          <div className="text-xs">
-                            <span className="text-gray-400">Expected:</span> 
-                            <code className="ml-2 bg-gray-800 p-1 rounded block mt-1">{result.expected}</code>
-                          </div>
-                          <div className="text-xs">
-                            <span className="text-gray-400">Actual:</span> 
-                            <code className={`ml-2 bg-gray-800 p-1 rounded block mt-1 ${!result.passed ? 'text-red-400' : ''}`}>
-                              {result.actual}
-                            </code>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="mt-4 text-center">
-                    <Badge 
-                      variant={testResults.success ? "default" : "destructive"} 
-                      className="text-sm px-4 py-1"
-                    >
-                      {testResults.success ? 'All Tests Passed' : 'Some Tests Failed'}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
+            {solvedProblems.has(selectedProblem.id) && (
+              <Badge variant="outline" className="ml-3 bg-green-500/20 text-green-400 border-green-500/30 flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Solved
+              </Badge>
             )}
           </div>
           
-          {/* Right side - Code editor and controls */}
-          <div className="lg:col-span-7 space-y-6">
-            <Card className="h-full flex flex-col">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg">Solution (CodeChef Style)</CardTitle>
-                  <div className="flex gap-2 items-center">
-                    {/* AI Assistant Dialog */}
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="flex items-center gap-1 bg-purple-950/30 border-purple-500/30 hover:bg-purple-900/40 hover:text-purple-300">
-                          <Bot className="h-4 w-4" />
-                          <span>AI Assistant</span>
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-[650px] h-[95vh] p-0 border-purple-500/30 bg-slate-900 overflow-hidden">
-                        <div className="absolute top-2 right-2 z-50">
-                          <DialogClose asChild>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full bg-purple-950/50 hover:bg-purple-800/70">
-                              <X className="h-4 w-4" />
-                              <span className="sr-only">Close</span>
-                            </Button>
-                          </DialogClose>
+          <div className="flex flex-wrap gap-1 mb-4">
+            {selectedProblem.tags && selectedProblem.tags.map(tag => (
+              <Badge key={tag} variant="outline" className="text-xs bg-purple-950/30">
+                {tag}
+              </Badge>
+            ))}
+            <Badge variant="outline" className="text-xs bg-blue-950/30">
+              {selectedProblem.source}
+            </Badge>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-9 gap-6">
+            {/* Left side - Problem description and test cases */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Problem Description</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-invert max-w-none">
+                    <p>{selectedProblem.description}</p>
+                    <div className="mt-3">
+                      <p className="text-sm">Format: CodeChef-style</p>
+                      <p className="text-sm text-gray-400">
+                        Input: <code>[2,7,11,15] 9</code><br/>
+                        Output: <code>0 1</code>
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Test Cases</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {selectedProblem.testCases && selectedProblem.testCases.map((testCase, index) => (
+                      <div key={index} className="rounded-md bg-gray-800/50 p-4 text-sm">
+                        <h4 className="text-sm font-medium mb-2">Test Case {index + 1}</h4>
+                        <div className="mb-2">
+                          <span className="text-gray-400">Input:</span> 
+                          <code className="text-xs bg-gray-700 p-1 rounded ml-2 block mt-1 whitespace-pre-wrap">{testCase.input}</code>
                         </div>
-                        <div className="h-full relative">
+                        <div>
+                          <span className="text-gray-400">Expected Output:</span> 
+                          <code className="text-xs bg-gray-700 p-1 rounded ml-2 block mt-1 whitespace-pre-wrap">{testCase.output}</code>
+                        </div>
+                        {testCase.explanation && (
+                          <div className="mt-3 text-xs text-gray-400 border-t border-gray-700 pt-2">
+                            <span className="font-medium">Explanation:</span> {testCase.explanation}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Test Results Section */}
+              {testResults && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center">
+                      Test Results
+                      {testResults.success ? (
+                        <CheckCircle2 className="ml-2 h-5 w-5 text-green-500" />
+                      ) : (
+                        <XCircle className="ml-2 h-5 w-5 text-red-500" />
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4 max-h-96 overflow-auto">
+                      {testResults.results.map((result: any, index: number) => (
+                        <div 
+                          key={index} 
+                          className={`rounded-md ${result.passed ? 'bg-green-900/20 border border-green-500/30' : 'bg-red-900/20 border border-red-500/30'} p-3 text-sm`}
+                        >
+                          <div className="flex justify-between items-center mb-2">
+                            <span className={`text-sm font-medium ${result.passed ? 'text-green-400' : 'text-red-400'}`}>
+                              Test Case {index + 1}: {result.passed ? 'PASSED' : 'FAILED'}
+                            </span>
+                            {result.time && (
+                              <span className="text-xs text-gray-400">
+                                {result.time}
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-xs">
+                              <span className="text-gray-400">Input:</span> 
+                              <code className="ml-2 bg-gray-800 p-1 rounded block mt-1">{result.input}</code>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-gray-400">Expected:</span> 
+                              <code className="ml-2 bg-gray-800 p-1 rounded block mt-1">{result.expected}</code>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-gray-400">Actual:</span> 
+                              <code className={`ml-2 bg-gray-800 p-1 rounded block mt-1 ${!result.passed ? 'text-red-400' : ''}`}>
+                                {result.actual}
+                              </code>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-4 text-center">
+                      <Badge 
+                        variant={testResults.success ? "default" : "destructive"} 
+                        className="text-sm px-4 py-1"
+                      >
+                        {testResults.success ? 'All Tests Passed' : 'Some Tests Failed'}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+            
+            {/* Right side - Code editor and controls */}
+            <div className="lg:col-span-7 space-y-6">
+              <Card className="h-full flex flex-col">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg">Solution (CodeChef Style)</CardTitle>
+                    <div className="flex gap-2 items-center">
+                      {/* AI Assistant Dialog */}
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="flex items-center gap-1 bg-purple-950/30 border-purple-500/30 hover:bg-purple-900/40 hover:text-purple-300">
+                            <Bot className="h-4 w-4" />
+                            <span>AI Assistant</span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-[650px] h-[95vh] p-0 border-purple-500/30 bg-slate-900 overflow-hidden">
+                          <div className="absolute top-2 right-2 z-50">
+                            <DialogClose asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full bg-purple-950/50 hover:bg-purple-800/70">
+                                <X className="h-4 w-4" />
+                                <span className="sr-only">Close</span>
+                              </Button>
+                            </DialogClose>
+                          </div>
+                          <div className="h-full relative">
             <AIAssistant 
               problemTitle={selectedProblem.title}
               problemDescription={selectedProblem.description}
@@ -1614,348 +1681,351 @@ export default function CodeBuddy() {
               onSuggestionApply={(suggestion) => setSolution(suggestion)}
             />
           </div>
-                      </DialogContent>
-                    </Dialog>
-                    
-                  <Select 
-                      defaultValue="python" 
-                    value={selectedLanguage}
-                    onValueChange={setSelectedLanguage}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="python">Python</SelectItem>
-                        <SelectItem value="javascript">JavaScript</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        </DialogContent>
+                      </Dialog>
+                      
+                    <Select 
+                        defaultValue="python" 
+                      value={selectedLanguage}
+                      onValueChange={setSelectedLanguage}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="python">Python</SelectItem>
+                          <SelectItem value="javascript">JavaScript</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow pb-2">
-                {/* Use the Editor component for code editing with proper syntax highlighting */}
-                <div className="h-[calc(100vh-300px)] bg-black rounded-md overflow-auto">
-                  <Editor
-                  value={solution}
-                    onChange={setSolution}
-                    language={selectedLanguage}
-                    readOnlyRanges={codeTemplate?.readOnlyRanges || []}
-                    template={codeTemplate?.template || ''}
-                    startingLine={codeTemplate?.startingLine || 1}
-                    endLine={codeTemplate?.endLine || 1}
-                  />
-                </div>
-              </CardContent>
-              <CardFooter className="border-t border-gray-800 pt-4 space-x-4">
-                <Button 
-                  variant="outline"
-                  onClick={handleRunTests}
-                  disabled={isRunningTests || !solution.trim()}
-                  size="lg"
-                  className="flex-1"
-                >
-                  {isRunningTests ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Running Tests...
-                    </>
-                  ) : (
-                    'Run Tests'
-                  )}
-                </Button>
-                
-                <Button 
-                  onClick={handleSubmitSolution}
-                  disabled={isSubmitting || !solution.trim()}
-                  size="lg"
-                  className={`flex-1 ${solvedProblems.has(selectedProblem.id) ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Submitting...
-                    </>
-                  ) : (
-                    solvedProblems.has(selectedProblem.id) ? (
+                </CardHeader>
+                <CardContent className="flex-grow pb-2">
+                  {/* Use the Editor component for code editing with proper syntax highlighting */}
+                  <div className="h-[calc(100vh-300px)] bg-black rounded-md overflow-auto">
+                    <Editor
+                    value={solution}
+                      onChange={setSolution}
+                      language={selectedLanguage}
+                      readOnlyRanges={codeTemplate?.readOnlyRanges || []}
+                      template={codeTemplate?.template || ''}
+                      startingLine={codeTemplate?.startingLine || 1}
+                      endLine={codeTemplate?.endLine || 1}
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="border-t border-gray-800 pt-4 space-x-4">
+                  <Button 
+                    variant="outline"
+                    onClick={handleRunTests}
+                    disabled={isRunningTests || !solution.trim()}
+                    size="lg"
+                    className="flex-1"
+                  >
+                    {isRunningTests ? (
                       <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Solved
-                    </>
-                  ) : (
-                    'Submit Solution'
-                    )
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Running Tests...
+                      </>
+                    ) : (
+                      'Run Tests'
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleSubmitSolution}
+                    disabled={isSubmitting || !solution.trim()}
+                    size="lg"
+                    className={`flex-1 ${solvedProblems.has(selectedProblem.id) ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Submitting...
+                      </>
+                    ) : (
+                      solvedProblems.has(selectedProblem.id) ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Solved
+                      </>
+                    ) : (
+                      'Submit Solution'
+                      )
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
           </div>
-        </div>
+        </Container>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
-          CodeBuddy
-        </h1>
-        <p className="text-gray-400 mt-2 max-w-2xl mx-auto">
-          Practice competitive coding problems, participate in contests, and improve your algorithmic skills
-        </p>
-      </div>
-      
-      {error && (
-        <div className="p-4 mb-6 border border-red-500/30 bg-red-500/10 rounded-md text-center">
-          <p className="text-red-400 mb-2">Error loading content:</p>
-          <p className="text-red-300 text-sm">{error}</p>
-          <Button 
-            variant="outline" 
-            className="mt-4 border-red-500/30 text-red-400 hover:bg-red-500/20"
-            onClick={() => window.location.reload()}
-          >
-            Reload page
-          </Button>
+    <div className="min-h-screen bg-background pt-16 code-buddy-container pb-20">
+      <Container maxWidth="xl" className="py-8 px-2 sm:px-4">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
+            CodeBuddy
+          </h1>
+          <p className="text-gray-400 mt-2 max-w-2xl mx-auto">
+            Practice competitive coding problems, participate in contests, and improve your algorithmic skills
+          </p>
         </div>
-      )}
-      
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-10 h-10 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-400">Loading coding problems and contests...</p>
-        </div>
-      ) : (
-        <>
-          <Tabs 
-            defaultValue="problems" 
-            value={activeTab} 
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="problems" className="text-sm">
-                <Code className="h-4 w-4 mr-2" />
-                Practice Problems
-              </TabsTrigger>
-              <TabsTrigger value="contests" className="text-sm">
-                <Calendar className="h-4 w-4 mr-2" />
-                Contests
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="problems">
-              <div className="flex flex-col gap-4 mb-6">
-                <div className="relative flex-1">
-                  <Input
-                    placeholder="Search problems by title or tag..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-4"
-                  />
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  <Select onValueChange={(value) => setSelectedDifficulty(value === "all" ? null : value)}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Difficulties</SelectItem>
-                      <SelectItem value="Easy">Easy</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
+        
+        {error && (
+          <div className="p-4 mb-6 border border-red-500/30 bg-red-500/10 rounded-md text-center">
+            <p className="text-red-400 mb-2">Error loading content:</p>
+            <p className="text-red-300 text-sm">{error}</p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-red-500/30 text-red-400 hover:bg-red-500/20"
+              onClick={() => window.location.reload()}
+            >
+              Reload page
+            </Button>
+          </div>
+        )}
+        
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-400">Loading coding problems and contests...</p>
+          </div>
+        ) : (
+          <>
+            <Tabs 
+              defaultValue="problems" 
+              value={activeTab} 
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2 mb-8">
+                <TabsTrigger value="problems" className="text-sm">
+                  <Code className="h-4 w-4 mr-2" />
+                  Practice Problems
+                </TabsTrigger>
+                <TabsTrigger value="contests" className="text-sm">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Contests
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="problems">
+                <div className="flex flex-col gap-4 mb-6">
+                  <div className="relative flex-1">
+                    <Input
+                      placeholder="Search problems by title or tag..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-4"
+                    />
+                  </div>
                   
-                  {sources && sources.length > 0 && (
-                    <Select onValueChange={(value) => setSelectedSource(value === "all" ? null : value)}>
+                  <div className="flex flex-wrap gap-2">
+                    <Select onValueChange={(value) => setSelectedDifficulty(value === "all" ? null : value)}>
                       <SelectTrigger className="w-[150px]">
-                        <SelectValue placeholder="Source" />
+                        <SelectValue placeholder="Difficulty" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Sources</SelectItem>
-                        {sources.map((source) => (
-                          <SelectItem key={source} value={source}>{source}</SelectItem>
-                        ))}
+                        <SelectItem value="all">All Difficulties</SelectItem>
+                        <SelectItem value="Easy">Easy</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="Hard">Hard</SelectItem>
                       </SelectContent>
                     </Select>
-                  )}
+                    
+                    {sources && sources.length > 0 && (
+                      <Select onValueChange={(value) => setSelectedSource(value === "all" ? null : value)}>
+                        <SelectTrigger className="w-[150px]">
+                          <SelectValue placeholder="Source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Sources</SelectItem>
+                          {sources.map((source) => (
+                            <SelectItem key={source} value={source}>{source}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    
+                    {selectedTags.length > 0 && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setSelectedTags([])}
+                        className="text-xs"
+                      >
+                        Clear Tags
+                      </Button>
+                    )}
+                  </div>
                   
-                  {selectedTags.length > 0 && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setSelectedTags([])}
-                      className="text-xs"
-                    >
-                      Clear Tags
-                    </Button>
-                  )}
+                  {/* Tag selector */}
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {allTags.map(tag => (
+                      <Badge 
+                        key={tag} 
+                        variant={selectedTags.includes(tag) ? "default" : "outline"} 
+                        className={`text-xs cursor-pointer hover:bg-purple-950/30 ${
+                          selectedTags.includes(tag) ? 'bg-purple-600/60' : 'bg-purple-950/10'
+                        }`}
+                        onClick={() => handleTagToggle(tag)}
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
                 
-                {/* Tag selector */}
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {allTags.map(tag => (
-                    <Badge 
-                      key={tag} 
-                      variant={selectedTags.includes(tag) ? "default" : "outline"} 
-                      className={`text-xs cursor-pointer hover:bg-purple-950/30 ${
-                        selectedTags.includes(tag) ? 'bg-purple-600/60' : 'bg-purple-950/10'
-                      }`}
-                      onClick={() => handleTagToggle(tag)}
+                {!filteredProblems.length ? (
+                  <div className="col-span-full flex flex-col items-center justify-center py-10 text-gray-400">
+                    <Filter className="h-12 w-12 mb-2 opacity-30" />
+                    <p>No problems match your filters</p>
+                    <Button 
+                      variant="link" 
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSelectedDifficulty(null);
+                        setSelectedSource(null);
+                        setSelectedTags([]);
+                      }}
                     >
-                      {tag}
-                    </Badge>
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {['Easy', 'Medium', 'Hard'].map(difficulty => {
+                      const difficultyProblems = filteredProblems.filter(p => p.difficulty === difficulty);
+                      if (!difficultyProblems.length) return null;
+                      
+                      return (
+                        <div key={difficulty} className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-semibold">{difficulty} Problems</h3>
+                            <Badge variant="outline" className={
+                              difficulty === 'Easy' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                              difficulty === 'Medium' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                              'bg-red-500/20 text-red-400 border-red-500/30'
+                            }>
+                              {difficultyProblems.length}
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {difficultyProblems.map((problem) => (
+                              <Card key={problem.id} className={`hover:shadow-md transition-all ${
+                                solvedProblems.has(problem.id) ? 'border-green-500/50' : 'hover:border-purple-500/50'
+                              }`}>
+                                <CardHeader>
+                                  <div className="flex items-center justify-between">
+                                    <CardTitle className="text-base">
+                                      {problem.title}
+                                      {solvedProblems.has(problem.id) && (
+                                        <CheckCircle className="inline-block ml-2 h-4 w-4 text-green-500" />
+                                      )}
+                                    </CardTitle>
+                                    <Badge>{problem.difficulty}</Badge>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="pb-2">
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {problem.tags && problem.tags.map(tag => (
+                                      <Badge key={tag} variant="outline" className="text-xs bg-purple-950/30">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                    {solvedProblems.has(problem.id) && (
+                                      <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
+                                        {localStorage.getItem(`codeBuddyLanguage_${problem.id}`)?.charAt(0).toUpperCase() + 
+                                         localStorage.getItem(`codeBuddyLanguage_${problem.id}`)?.slice(1) || 'Solved'}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm line-clamp-2 text-gray-400">
+                                    {problem.description}
+                                  </p>
+                                </CardContent>
+                                <CardFooter>
+                                  <Button 
+                                    variant="secondary" 
+                                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all"
+                                    onClick={() => handleProblemSelect(problem)}
+                                  >
+                                    {solvedProblems.has(problem.id) ? (
+                                      <>
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                        Continue Solving
+                                      </>
+                                    ) : (
+                                      'Solve Problem'
+                                    )}
+                                  </Button>
+                                </CardFooter>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="contests">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {contests.map((contest) => (
+                    <Card key={contest.id} className="hover:shadow-md hover:border-purple-500/50 transition-all">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-lg">{contest.title}</CardTitle>
+                          {renderContestDifficulty(contest.difficulty)}
+                        </div>
+                        <CardDescription className="text-sm">
+                          {contest.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-400">Start Date:</span>
+                            <span>{format(new Date(contest.startDate), 'PPp')}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-400">End Date:</span>
+                            <span>{format(new Date(contest.endDate), 'PPp')}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-400">Problems:</span>
+                            <span>{contest.problems}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-400">Participants:</span>
+                            <span>{contest.participants.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter>
+                        <Button
+                          variant={contest.registered ? "secondary" : "default"}
+                          className="w-full"
+                          onClick={() => handleRegisterContest(contest.id)}
+                          disabled={contest.registered}
+                        >
+                          {contest.registered ? "Registered" : "Register Now"}
+                        </Button>
+                      </CardFooter>
+                    </Card>
                   ))}
                 </div>
-              </div>
-              
-              {!filteredProblems.length ? (
-                <div className="col-span-full flex flex-col items-center justify-center py-10 text-gray-400">
-                  <Filter className="h-12 w-12 mb-2 opacity-30" />
-                  <p>No problems match your filters</p>
-                  <Button 
-                    variant="link" 
-                    onClick={() => {
-                      setSearchQuery("");
-                      setSelectedDifficulty(null);
-                      setSelectedSource(null);
-                      setSelectedTags([]);
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-8">
-                  {['Easy', 'Medium', 'Hard'].map(difficulty => {
-                    const difficultyProblems = filteredProblems.filter(p => p.difficulty === difficulty);
-                    if (!difficultyProblems.length) return null;
-                    
-                    return (
-                      <div key={difficulty} className="space-y-4">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-semibold">{difficulty} Problems</h3>
-                          <Badge variant="outline" className={
-                            difficulty === 'Easy' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                            difficulty === 'Medium' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                            'bg-red-500/20 text-red-400 border-red-500/30'
-                          }>
-                            {difficultyProblems.length}
-                          </Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {difficultyProblems.map((problem) => (
-                            <Card key={problem.id} className={`hover:shadow-md transition-all ${
-                              solvedProblems.has(problem.id) ? 'border-green-500/50' : 'hover:border-purple-500/50'
-                            }`}>
-                              <CardHeader>
-                                <div className="flex items-center justify-between">
-                                  <CardTitle className="text-base">
-                                    {problem.title}
-                                    {solvedProblems.has(problem.id) && (
-                                      <CheckCircle className="inline-block ml-2 h-4 w-4 text-green-500" />
-                                    )}
-                                  </CardTitle>
-                                  <Badge>{problem.difficulty}</Badge>
-                                </div>
-                              </CardHeader>
-                              <CardContent className="pb-2">
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {problem.tags && problem.tags.map(tag => (
-                                    <Badge key={tag} variant="outline" className="text-xs bg-purple-950/30">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                  {solvedProblems.has(problem.id) && (
-                                    <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
-                                      {localStorage.getItem(`codeBuddyLanguage_${problem.id}`)?.charAt(0).toUpperCase() + 
-                                       localStorage.getItem(`codeBuddyLanguage_${problem.id}`)?.slice(1) || 'Solved'}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm line-clamp-2 text-gray-400">
-                                  {problem.description}
-                                </p>
-                              </CardContent>
-                              <CardFooter>
-                                <Button 
-                                  variant="secondary" 
-                                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all"
-                                  onClick={() => handleProblemSelect(problem)}
-                                >
-                                  {solvedProblems.has(problem.id) ? (
-                                    <>
-                                      <CheckCircle className="h-4 w-4 mr-2" />
-                                      Continue Solving
-                                    </>
-                                  ) : (
-                                    'Solve Problem'
-                                  )}
-                                </Button>
-                              </CardFooter>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="contests">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {contests.map((contest) => (
-                  <Card key={contest.id} className="hover:shadow-md hover:border-purple-500/50 transition-all">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg">{contest.title}</CardTitle>
-                        {renderContestDifficulty(contest.difficulty)}
-                      </div>
-                      <CardDescription className="text-sm">
-                        {contest.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400">Start Date:</span>
-                          <span>{format(new Date(contest.startDate), 'PPp')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400">End Date:</span>
-                          <span>{format(new Date(contest.endDate), 'PPp')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400">Problems:</span>
-                          <span>{contest.problems}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400">Participants:</span>
-                          <span>{contest.participants.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <Button
-                        variant={contest.registered ? "secondary" : "default"}
-                        className="w-full"
-                        onClick={() => handleRegisterContest(contest.id)}
-                        disabled={contest.registered}
-                      >
-                        {contest.registered ? "Registered" : "Register Now"}
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+      </Container>
     </div>
   );
 }

@@ -42,6 +42,7 @@ export interface ResumeGenerationResponse {
     matched: string[];
     missing: string[];
   };
+  atsCompatibility?: number; // 0-100 score for ATS compatibility
 }
 
 export interface ResumeTemplate {
@@ -50,6 +51,8 @@ export interface ResumeTemplate {
   description: string;
   thumbnail: string;
   isPremium: boolean;
+  previewUrl?: string;
+  atsScore?: number; // ATS compatibility score
 }
 
 // Available resume templates
@@ -59,35 +62,45 @@ export const resumeTemplates: ResumeTemplate[] = [
     name: 'Minimal',
     description: 'Clean, simple design with excellent ATS compatibility',
     thumbnail: '/resume-templates/minimal.png',
-    isPremium: false
+    previewUrl: '/resume-templates/minimal.png',
+    isPremium: false,
+    atsScore: 98
   },
   {
     id: 'professional',
     name: 'Professional',
     description: 'Traditional format preferred by established companies',
     thumbnail: '/resume-templates/professional.png',
-    isPremium: false
+    previewUrl: '/resume-templates/professional.png',
+    isPremium: false,
+    atsScore: 95
   },
   {
     id: 'modern',
     name: 'StudyBuddy Purple',
     description: 'Contemporary design with the StudyBuddy color scheme',
     thumbnail: '/resume-templates/modern.png',
-    isPremium: false
+    previewUrl: '/resume-templates/modern.png',
+    isPremium: false,
+    atsScore: 90
   },
   {
     id: 'tech',
     name: 'Tech Focused',
     description: 'Highlights technical skills with code-inspired design',
     thumbnail: '/resume-templates/tech.png',
-    isPremium: true
+    previewUrl: '/resume-templates/tech.png',
+    isPremium: true,
+    atsScore: 85
   },
   {
     id: 'executive',
     name: 'CodeDiploMate Premium',
     description: 'Sophisticated layout with AI-optimized design',
     thumbnail: '/resume-templates/executive.png',
-    isPremium: true
+    previewUrl: '/resume-templates/executive.png',
+    isPremium: true,
+    atsScore: 88
   }
 ];
 
@@ -102,7 +115,7 @@ export async function generateAtsResume(
   try {
     // Prepare the prompt for the AI
     const prompt = `
-As an expert resume writer, create an ATS-friendly resume for the following person, tailored to the job description.
+As an expert resume writer specializing in ATS optimization, create an ATS-friendly resume for the following person, tailored to the job description.
 
 CANDIDATE INFORMATION:
 Full Name: ${resumeData.fullName}
@@ -145,29 +158,46 @@ JOB DESCRIPTION:
 ${jobDescription}
 
 INSTRUCTIONS:
-1. Create an ATS-friendly resume that will pass automated screening systems.
+1. Create a highly ATS-optimized resume that will pass automated screening systems by:
+   - Using standard section headers (Summary, Experience, Education, Skills)
+   - Using a clean, simple format with no tables, columns, headers/footers, or graphics
+   - Placing important information in the main body of the document
+   - Including exact keywords and phrases from the job description
+   - Using standard fonts and simple bullet points
+   - Ensuring contact information is at the top and clearly visible
+
 2. Format the resume in a clean, professional layout using the "${getTemplateName(templateId)}" template style.
-3. Highlight relevant skills and experience that match the job description.
-4. Use action verbs and quantify achievements where possible.
-5. Optimize the content with relevant keywords from the job description.
-6. Keep the resume concise and within 1-2 pages.
-7. Return the formatted resume in well-structured text format.
-8. Also provide:
-   - A list of 3-5 suggestions for improvement
-   - A job match score (0-100)
-   - A list of keywords from the job that were matched in the resume
+
+3. Tailor the content specifically to the job description by:
+   - Highlighting relevant skills and experience that match the job requirements
+   - Using industry-specific terminology from the job posting
+   - Prioritizing the most relevant experience and skills
+   - Quantifying achievements with metrics where possible
+   - Using strong action verbs to describe accomplishments
+
+4. Return the formatted resume as HTML that can be rendered directly, with clean semantic markup.
+   - Use appropriate HTML tags (<h1>, <h2>, <p>, <ul>, <li>, etc.)
+   - Use simple CSS for minimal styling (font, spacing, etc.)
+   - Avoid complex layouts that might confuse ATS systems
+
+5. Also provide:
+   - A list of 3-5 specific suggestions for improving ATS optimization
+   - A job match score (0-100) based on alignment with the job description
+   - A list of keywords from the job that were successfully matched in the resume
    - A list of important keywords from the job that are missing in the resume
+   - An ATS compatibility score (0-100) based on format, keyword density, and structure
 
 OUTPUT FORMAT:
 Format your response as a JSON with the following structure:
 {
-  "content": "The full resume text with proper formatting",
+  "content": "The full resume as HTML with appropriate semantic markup",
   "suggestions": ["Suggestion 1", "Suggestion 2", ...],
   "jobMatch": 85,
   "keywords": {
     "matched": ["keyword1", "keyword2", ...],
     "missing": ["keyword3", "keyword4", ...]
-  }
+  },
+  "atsCompatibility": 90
 }
 `;
 
@@ -187,24 +217,38 @@ Format your response as a JSON with the following structure:
         // If JSON parsing fails, return a basic response with the content
         return {
           content: response.code,
-          suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
+          suggestions: [
+            "Include more keywords from the job description", 
+            "Quantify your achievements with specific metrics",
+            "Use industry-standard section headers for better ATS recognition",
+            "Ensure your contact information is clearly visible at the top",
+            "Remove any special characters or formatting that may confuse ATS systems"
+          ],
           jobMatch: 70,
           keywords: {
             matched: [],
             missing: []
-          }
+          },
+          atsCompatibility: 80
         };
       }
     } catch (error) {
       console.error("Error parsing resume response:", error);
       return {
         content: response.code,
-        suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
+        suggestions: [
+          "Include more keywords from the job description", 
+          "Quantify your achievements with specific metrics",
+          "Use industry-standard section headers for better ATS recognition",
+          "Ensure your contact information is clearly visible at the top",
+          "Remove any special characters or formatting that may confuse ATS systems"
+        ],
         jobMatch: 70,
         keywords: {
           matched: [],
           missing: []
-        }
+        },
+        atsCompatibility: 80
       };
     }
   } catch (error) {
@@ -223,7 +267,7 @@ export async function optimizeResumeForAts(
   try {
     // Prepare the prompt for the AI
     const prompt = `
-As an expert resume optimizer, improve the following resume to make it more ATS-friendly and tailored to the job description.
+As an expert resume optimizer specializing in ATS systems, improve the following resume to make it more ATS-friendly and tailored to the job description.
 
 EXISTING RESUME:
 ${existingResume}
@@ -232,28 +276,44 @@ JOB DESCRIPTION:
 ${jobDescription}
 
 INSTRUCTIONS:
-1. Optimize the resume to pass ATS screening systems.
-2. Maintain the original structure but enhance content and formatting.
-3. Incorporate relevant keywords from the job description.
-4. Improve bullet points with action verbs and quantifiable achievements.
-5. Keep the resume concise and within 1-2 pages.
-6. Return the formatted resume in well-structured text format.
-7. Also provide:
-   - A list of 3-5 suggestions for further improvement
-   - A job match score (0-100)
-   - A list of keywords from the job that were matched in the resume
+1. Optimize the resume to pass ATS screening systems by:
+   - Using standard section headers (Summary, Experience, Education, Skills)
+   - Creating a clean, simple format with no tables, columns, headers/footers, or graphics
+   - Placing important information in the main body of the document
+   - Including exact keywords and phrases from the job description
+   - Using standard fonts and simple bullet points
+   - Ensuring contact information is at the top and clearly visible
+
+2. Enhance the content to better match the job requirements:
+   - Incorporate relevant keywords naturally throughout the text
+   - Improve bullet points with strong action verbs and quantifiable achievements
+   - Highlight the most relevant experience and skills for this specific job
+   - Remove or downplay irrelevant information
+   - Ensure proper chronological order and consistent formatting
+
+3. Return the formatted resume as HTML that can be rendered directly, with clean semantic markup.
+   - Use appropriate HTML tags (<h1>, <h2>, <p>, <ul>, <li>, etc.)
+   - Use simple CSS for minimal styling (font, spacing, etc.)
+   - Avoid complex layouts that might confuse ATS systems
+
+4. Also provide:
+   - A list of 3-5 specific suggestions for improving ATS optimization
+   - A job match score (0-100) based on alignment with the job description
+   - A list of keywords from the job that were successfully matched in the resume
    - A list of important keywords from the job that are missing in the resume
+   - An ATS compatibility score (0-100) based on format, keyword density, and structure
 
 OUTPUT FORMAT:
 Format your response as a JSON with the following structure:
 {
-  "content": "The full optimized resume text with proper formatting",
+  "content": "The full optimized resume as HTML with appropriate semantic markup",
   "suggestions": ["Suggestion 1", "Suggestion 2", ...],
   "jobMatch": 85,
   "keywords": {
     "matched": ["keyword1", "keyword2", ...],
     "missing": ["keyword3", "keyword4", ...]
-  }
+  },
+  "atsCompatibility": 90
 }
 `;
 
@@ -263,34 +323,48 @@ Format your response as a JSON with the following structure:
     try {
       // Parse the response to extract the JSON
       const jsonMatch = response.code.match(/```json\n([\s\S]*?)\n```/) || 
-                        response.code.match(/({[\s\S]*})/) ||
-                        response.code.match(/(^\{[\s\S]*\}$)/m);
-                        
+                      response.code.match(/({[\s\S]*})/) ||
+                      response.code.match(/(^\{[\s\S]*\}$)/m);
+                      
       if (jsonMatch && jsonMatch[1]) {
         const parsedResponse = JSON.parse(jsonMatch[1]);
         return parsedResponse as ResumeGenerationResponse;
-    } else {
-        // If JSON parsing fails, return a basic response with the content
+      } else {
+        // If JSON parsing fails, return a basic response
         return {
           content: response.code,
-          suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
-          jobMatch: 70,
+          suggestions: [
+            "Include more keywords from the job description", 
+            "Quantify your achievements with specific metrics",
+            "Use industry-standard section headers for better ATS recognition",
+            "Ensure your contact information is clearly visible at the top",
+            "Remove any special characters or formatting that may confuse ATS systems"
+          ],
+          jobMatch: 75,
           keywords: {
             matched: [],
             missing: []
-          }
+          },
+          atsCompatibility: 85
         };
-    }
-  } catch (error) {
+      }
+    } catch (error) {
       console.error("Error parsing resume optimization response:", error);
       return {
         content: response.code,
-        suggestions: ["Consider adding more quantifiable achievements", "Ensure all keywords from the job description are included"],
-        jobMatch: 70,
+        suggestions: [
+          "Include more keywords from the job description", 
+          "Quantify your achievements with specific metrics",
+          "Use industry-standard section headers for better ATS recognition",
+          "Ensure your contact information is clearly visible at the top",
+          "Remove any special characters or formatting that may confuse ATS systems"
+        ],
+        jobMatch: 75,
         keywords: {
           matched: [],
           missing: []
-        }
+        },
+        atsCompatibility: 85
       };
     }
   } catch (error) {
@@ -299,9 +373,6 @@ Format your response as a JSON with the following structure:
   }
 }
 
-/**
- * Helper to get template name from ID
- */
 function getTemplateName(templateId: string): string {
   const template = resumeTemplates.find(t => t.id === templateId);
   return template ? template.name : 'Minimal';

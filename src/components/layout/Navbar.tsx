@@ -346,10 +346,10 @@ export default function Navbar() {
         )}
         style={{ backgroundColor: "rgba(30, 41, 59, 0.95)" }}
       >
-        <div className="px-4 py-4 max-h-[80vh] overflow-y-auto">
+        <div className="px-4 py-4 max-h-[80vh] overflow-y-auto mobile-menu-container">
           <div className="flex flex-col space-y-3">
-            {/* Only show most important navigation items on mobile */}
-            {navLinks.slice(0, 4).map((link, index) => (
+            {/* Show all navigation items on mobile */}
+            {navLinks.map((link, index) => (
               <NavbarLink 
                 key={index}
                 to={link.path}

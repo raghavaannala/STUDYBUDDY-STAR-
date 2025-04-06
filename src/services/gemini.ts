@@ -79,14 +79,21 @@ async function initChat() {
 // Initialize chat when service loads
 initChat();
 
-export async function getChatResponse(prompt: string): Promise<string> {
+export async function getChatResponse(prompt: string, context?: string): Promise<string> {
   if (!chat_session) {
     await initChat();
   }
 
   try {
     console.log('Sending prompt to Gemini:', prompt);
-    const response = await withRetry(() => chat_session.sendMessage(prompt));
+    
+    // If context is provided, format the prompt with the context
+    let finalPrompt = prompt;
+    if (context) {
+      finalPrompt = `${context}\n\nUser message: ${prompt}`;
+    }
+    
+    const response = await withRetry(() => chat_session.sendMessage(finalPrompt));
     const text = (response as any).response.text();
     console.log('Received response:', text);
     return text;
@@ -96,7 +103,10 @@ export async function getChatResponse(prompt: string): Promise<string> {
     if (error instanceof Error && (error.message.includes('session') || error.message.includes('model'))) {
       console.log('Session error, reinitializing...');
       await initChat();
-      const response = await chat_session.sendMessage(prompt);
+      
+      // Use the final prompt with context if provided
+      const finalPrompt = context ? `${context}\n\nUser message: ${prompt}` : prompt;
+      const response = await chat_session.sendMessage(finalPrompt);
       return (response as any).response.text();
     }
     throw error;
