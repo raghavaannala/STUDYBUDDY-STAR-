@@ -338,73 +338,80 @@ const Groups = () => {
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !description.trim() || !interestType.trim()) {
+    
+    // Check if user is authenticated
+    if (!user) {
       toast({
-        title: "Error",
-        description: "Please fill in all required fields",
+        title: "Authentication Required",
+        description: "You must be signed in to create a group.",
+        variant: "destructive",
+      });
+      navigate('/signin');
+      return;
+    }
+    
+    // Validate form inputs
+    if (!name.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Group name is required.",
         variant: "destructive",
       });
       return;
     }
-
+    
+    // Show loading state
     setIsCreating(true);
-
+    
     try {
-      // Reversed the isPublic value since we're tracking "isPrivate" in the UI
-      const newGroup = await groupService.createGroup(
-        { 
-          name, 
-          description,
-          interest: interestType 
-        }, 
-        "", 
-        !isPrivate, // Pass !isPrivate as the isPublic parameter
-        tags
-      );
-
-      toast({
-        title: "Success",
-        description: "Group created successfully!",
-      });
-
-      setCreatedGroupId(newGroup.code);
-      setShowSuccessDialog(true);
+      console.log(`Creating group: ${name}`);
       
-      // Reset form
+      // Create the group with proper error handling
+      const newGroup = await groupService.createGroup(
+        {
+          name: name.trim(),
+          description: description.trim() || "No description provided",
+          interest: interestType || "general"
+        },
+        "",  // Description is already in the options object
+        !isPrivate,  // isPublic parameter
+        tags  // Tags parameter
+      );
+      
+      console.log(`Group created successfully: ${newGroup.id}`);
+      
+      // Clear form fields
       setName("");
       setDescription("");
       setInterestType("");
-      setIsPrivate(false);
       setTags([]);
+      setIsPrivate(false);
       setTagInput("");
       
-      // Add the new group to the groups list
-      setGroups((prevGroups) => [...prevGroups, {
-        id: newGroup.id,
-        privateId: newGroup.id,
-        name: newGroup.name,
-        description: newGroup.description,
-        interest: interestType,
-        members: newGroup.members,
-        createdAt: newGroup.createdAt,
-        createdBy: newGroup.createdBy,
-        code: newGroup.code,
-        tags: newGroup.tags,
-        // Map the activeCall properly if it exists
-        ...(newGroup.activeCall ? {
-          activeCall: {
-            initiator: newGroup.activeCall.initiatedBy,
-            participants: newGroup.activeCall.participants,
-            startTime: newGroup.activeCall.startedAt,
-            isAudioOnly: newGroup.activeCall.isAudioOnly
-          }
-        } : {})
-      } as GroupUI]);
-    } catch (error) {
-      console.error("Error creating group:", error);
+      // Show success notification
       toast({
-        title: "Error",
-        description: "Failed to create group. Please try again.",
+        title: "Group Created",
+        description: "Your study group has been created successfully!",
+        variant: "default",
+      });
+      
+      // Refresh groups list
+      fetchGroups();
+      
+      // Set success dialog
+      setCreatedGroupId(newGroup.code || "");
+      setShowSuccessDialog(true);
+      
+    } catch (error) {
+      console.error("Failed to create group:", error);
+      
+      // Parse error message
+      const errorMessage = error.message || "Unknown error occurred";
+      
+      // Display meaningful error to user
+      toast({
+        title: "Failed to Create Group",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

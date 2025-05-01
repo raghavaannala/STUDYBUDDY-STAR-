@@ -1,13 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TaskGroups from '@/components/study/TaskGroups';
 import StudyModules from '@/components/study/StudyModules';
+import SimplePomodoroTimer from '@/components/study/SimplePomodoroTimer';
+import SimpleStudyAnalytics from '@/components/study/SimpleStudyAnalytics';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Clock, BarChart3 } from 'lucide-react';
 import FadeIn from '@/components/animations/FadeIn';
 
 // Define interest categories
@@ -21,6 +23,16 @@ const interests = [
 
 const Study = () => {
   const [activeTab, setActiveTab] = useState('modules');
+  
+  // Force a re-render when the component mounts
+  useEffect(() => {
+    // This should help with any loading issues
+    const timer = setTimeout(() => {
+      setActiveTab(activeTab);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -41,6 +53,22 @@ const Study = () => {
                   Add New Task
                 </Button>
               </div>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <FadeIn delay={0.1}>
+                <div className="col-span-1">
+                  <h2 className="text-xl font-bold mb-4 text-white">Pomodoro Timer</h2>
+                  <SimplePomodoroTimer />
+                </div>
+              </FadeIn>
+              
+              <FadeIn delay={0.2}>
+                <div className="col-span-1">
+                  <h2 className="text-xl font-bold mb-4 text-white">Study Analytics</h2>
+                  <SimpleStudyAnalytics />
+                </div>
+              </FadeIn>
             </div>
             
             <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
