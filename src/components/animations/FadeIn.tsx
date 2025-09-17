@@ -108,8 +108,8 @@ const FadeIn = ({
   // Add these styles to your global CSS
   const styles = `
     @keyframes sparkle {
-      0%, 100% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
+      0%, 100% { background-position: 50% 50%; }
+      50% { background-position: 100% 100%; }
     }
 
     @keyframes glow {

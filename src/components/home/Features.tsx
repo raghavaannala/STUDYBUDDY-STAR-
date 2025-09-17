@@ -9,6 +9,7 @@ const features = [
     icon: <Code className="h-7 w-7" />,
     title: 'Smart Code Assistant',
     description: 'Intelligent code completion, debugging, and explanation powered by Gemini.',
+    link: '/code',
     delay: 0.1
   },
   {
@@ -45,19 +46,13 @@ const features = [
     link: '/games',
     delay: 0.5
   },
-  {
-    icon: <FileText className="h-6 w-6 text-primary" />,
-    title: 'ResumeBuddy',
-    description: 'Create ATS-friendly resumes tailored to job descriptions using our AI-powered CodeDiploMate technology.',
-    link: '/resume',
-    delay: 0.6
-  }
+  
 ];
 
 const Features = () => {
   return (
     <section className="py-6 sm:py-10">
-      <div className="container mx-auto px-2 md:px-4">
+      <div className="container mx-auto px-4 md:px-6">
         <div className="text-center mb-6 sm:mb-8">
           <FadeIn>
             <h2 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3">Key Features</h2>
