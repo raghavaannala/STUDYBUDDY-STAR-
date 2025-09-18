@@ -141,7 +141,12 @@ const App = () => {
           <ThemeProvider theme={muiTheme}>
             <HelmetProvider>
               <TooltipProvider>
-                <Router>
+                <Router 
+                  future={{
+                    v7_startTransition: true,
+                    v7_relativeSplatPath: true
+                  }}
+                >
                   <Meta />
                   <div className="page-transition-container full-width-container" style={{ 
                     backgroundColor: "#1e293b", 

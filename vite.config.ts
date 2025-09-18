@@ -11,13 +11,26 @@ export default defineConfig(({ mode }) => {
   
   return {
     server: {
-      host: true,
-      port: 8080,
+      host: '0.0.0.0',
+      port: 8000,
+      strictPort: true,
+      hmr: {
+        port: 8000,
+        host: 'localhost',
+        clientPort: 8000
+      },
+      watch: {
+        usePolling: true,
+        interval: 100
+      },
+      cors: true
     },
     plugins: [
       react(),
       mode === 'development' &&
-      componentTagger(),
+      componentTagger({
+        exclude: ['ThemeProvider', 'ThemeProvider2', 'ThemeProviderNoVars', 'MuiThemeProvider']
+      }),
     ].filter(Boolean),
     resolve: {
       alias: {

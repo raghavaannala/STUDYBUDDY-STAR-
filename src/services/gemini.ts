@@ -9,21 +9,82 @@ if (!API_KEY) {
 // Initialize the Gemini API
 const genAI = new GoogleGenerativeAI(API_KEY || '');
 
-const generation_config = {
-  temperature: 0.9,  // Slightly lower temperature for more coherent responses
-  topP: 0.95,
-  topK: 40,
-  maxOutputTokens: 8192,
-  responseMimeType: "text/plain",
-};
+// Multiple model fallbacks to handle quota issues - using latest models
+const MODELS = [
+  "gemini-2.0-flash-exp",      // Latest experimental 2.0 model
+  "gemini-2.0-flash",          // Stable 2.0 flash model
+  "gemini-1.5-flash",          // Reliable 1.5 flash
+  "gemini-1.5-flash-8b",       // Lightweight fallback
+  "gemini-1.5-pro"             // High-quality fallback
+  // Removed "gemini-pro" as it's deprecated
+];
 
-// Using the flash model as specified
-const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash-8b",
-  generationConfig: generation_config,
-});
+let currentModelIndex = 0;
+let models: any[] = [];
 
-// System prompt to provide context about the app
+// Initialize all models
+function initializeModels() {
+  console.log('🚀 Initializing Gemini models...');
+  models = [];
+  
+  MODELS.forEach(modelName => {
+    try {
+      console.log(`Trying to initialize: ${modelName}`);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          temperature: 0.9,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 8192,
+          responseMimeType: "text/plain",
+        },
+      });
+      
+      models.push({ model, name: modelName });
+      console.log(`✅ Successfully initialized: ${modelName}`);
+    } catch (error: any) {
+      console.warn(`❌ Failed to initialize ${modelName}:`, error.message);
+      // Continue with other models even if one fails
+    }
+  });
+  
+  if (models.length === 0) {
+    console.error('❌ No models could be initialized!');
+    // Try to initialize at least one basic model as emergency fallback
+    try {
+      const emergencyModel = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash-8b", // Most basic model
+        generationConfig: {
+          temperature: 0.9,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 4096, // Reduced for emergency
+          responseMimeType: "text/plain",
+        },
+      });
+      models.push({ model: emergencyModel, name: "gemini-1.5-flash-8b" });
+      console.log('🆘 Emergency fallback model initialized');
+    } catch (emergencyError) {
+      console.error('💥 Even emergency fallback failed:', emergencyError);
+    }
+  }
+  
+  console.log(`✅ Total models initialized: ${models.length}`);
+}
+
+// Get next available model
+function getNextModel() {
+  if (models.length === 0) {
+    initializeModels();
+  }
+  
+  const model = models[currentModelIndex % models.length];
+  currentModelIndex = (currentModelIndex + 1) % models.length;
+  return model;
+}
+
+// System prompt for StudyBuddy
 const SYSTEM_PROMPT = `You are a helpful AI study assistant in the StudyBuddy app, an AI-powered learning platform. 
 Your name is Magical Assistant and you should speak in a friendly, slightly magical tone using ✨ emoji occasionally.
 
@@ -49,12 +110,27 @@ When answering academic questions:
 
 Always be encouraging and supportive of the user's learning journey.`;
 
-// Chat session with empty history
-let chat_session: any = null;
+// Simple cache for responses
+const responseCache = new Map<string, { response: string; timestamp: number }>();
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes - longer cache to reduce API calls
 
-async function initChat() {
+// Track API usage
+let apiCallCount = 0;
+const MAX_CALLS_PER_SESSION = 30; // Reduced to be more conservative
+
+// Chat sessions for each model
+const chatSessions = new Map<string, any>();
+
+/**
+ * Get or create chat session for a model
+ */
+async function getChatSession(modelObj: any, modelName: string) {
+  if (chatSessions.has(modelName)) {
+    return chatSessions.get(modelName);
+  }
+  
   try {
-    chat_session = await model.startChat({
+    const chat_session = await modelObj.model.startChat({
       history: [
         {
           role: "user",
@@ -62,93 +138,147 @@ async function initChat() {
         },
         {
           role: "model",
-          parts: [{ text: "I understand and I'm ready to help" }],
+          parts: [{ text: "I understand and I'm ready to help! ✨" }],
         },
       ],
-      generationConfig: generation_config,
     });
     
     // Set system prompt
     await chat_session.sendMessage(SYSTEM_PROMPT);
+    chatSessions.set(modelName, chat_session);
+    console.log(`✅ Chat session initialized for ${modelName}`);
+    return chat_session;
   } catch (error) {
-    console.error("Error initializing chat:", error);
-    // If initialization fails, we'll try again on the first message
+    console.error(`Error initializing chat for ${modelName}:`, error);
+    return null;
   }
 }
 
-// Initialize chat when service loads
-initChat();
-
+/**
+ * Main chat response function with aggressive fallback
+ */
 export async function getChatResponse(prompt: string, context?: string): Promise<string> {
-  if (!chat_session) {
-    await initChat();
+  if (!API_KEY) {
+    return "I'm sorry, but the AI assistant is not configured. Please contact support to set up the API key.";
   }
 
-  try {
-    console.log('Sending prompt to Gemini:', prompt);
-    
-    // If context is provided, format the prompt with the context
-    let finalPrompt = prompt;
-    if (context) {
-      finalPrompt = `${context}\n\nUser message: ${prompt}`;
-    }
-    
-    const response = await withRetry(() => chat_session.sendMessage(finalPrompt));
-    const text = (response as any).response.text();
-    console.log('Received response:', text);
-    return text;
-  } catch (error) {
-    console.error('Error in getChatResponse:', error);
-    // If we get a session error, try to reinitialize and retry once
-    if (error instanceof Error && (error.message.includes('session') || error.message.includes('model'))) {
-      console.log('Session error, reinitializing...');
-      await initChat();
-      
-      // Use the final prompt with context if provided
-      const finalPrompt = context ? `${context}\n\nUser message: ${prompt}` : prompt;
-      const response = await chat_session.sendMessage(finalPrompt);
-      return (response as any).response.text();
-    }
-    throw error;
-  }
-}
-
-// Retry logic helper
-async function withRetry<T>(
-  operation: () => Promise<T>,
-  maxRetries = 3,
-  initialDelay = 1000
-): Promise<T> {
-  let lastError;
+  // Create cache key
+  const cacheKey = `${prompt}_${context || ''}`;
   
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  // Check cache first (longer cache duration)
+  const cached = responseCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log('✅ Returning cached response');
+    return cached.response;
+  }
+
+  // Check if we've exceeded our session limit
+  if (apiCallCount >= MAX_CALLS_PER_SESSION) {
+    return "I've reached my usage limit for this session to avoid quota issues. Please refresh the page to continue. ✨";
+  }
+
+  // Format prompt with context if provided
+  let finalPrompt = prompt;
+  if (context) {
+    finalPrompt = `${context}\n\nUser message: ${prompt}`;
+  }
+
+  // Try all models until one works
+  let lastError: any = null;
+  const maxAttempts = models.length * 2; // Try each model twice
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const model = getNextModel();
+    const modelName = model.name;
+    
     try {
-      return await operation();
+      console.log(`Attempt ${attempt + 1}: Trying ${modelName}...`);
+      
+      // Get or create chat session
+      const chatSession = await getChatSession(model, modelName);
+      if (!chatSession) {
+        continue; // Try next model
+      }
+      
+      // Send message with timeout
+      const response = await Promise.race([
+        chatSession.sendMessage(finalPrompt),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 15000)
+        )
+      ]);
+      
+      const text = (response as any).response.text();
+      
+      if (text && text.trim().length > 0) {
+        console.log(`✅ Success with ${modelName}`);
+        apiCallCount++;
+        
+        // Cache the response
+        responseCache.set(cacheKey, { response: text, timestamp: Date.now() });
+        
+        return text;
+      }
     } catch (error: any) {
       lastError = error;
+      console.warn(`❌ ${modelName} failed:`, error.message);
       
-      // Check if it's a rate limit error (429)
-      if (error?.status === 429 && attempt < maxRetries - 1) {
-        const delay = initialDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(`Rate limit hit, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+      // If quota exceeded, remove this model's chat session and try next
+      if (error?.status === 429 || error?.message?.includes('quota')) {
+        chatSessions.delete(modelName);
+        console.log(`🔄 Quota exceeded for ${modelName}, trying next model...`);
         continue;
       }
       
-      throw error;
+      // For other errors, wait a bit before trying next model
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
   
-  throw lastError;
+  // If all models failed
+  console.error('❌ All models failed:', lastError);
+  
+  if (lastError?.status === 429 || lastError?.message?.includes('quota')) {
+    return "I'm sorry, but all AI models have reached their quota limits. This is likely due to high usage. Please try again in a few minutes or refresh the page. ✨";
+  }
+  
+  if (lastError?.message?.includes('safety')) {
+    return "I cannot provide a response to that query due to content safety restrictions. Please try asking something else. ✨";
+  }
+  
+  return "I'm sorry, but I'm having trouble connecting to the AI service right now. Please try again in a moment. ✨";
 }
 
-// Reset chat session if needed
-export async function resetChat() {
+/**
+ * Reset everything
+ */
+export async function resetChat(): Promise<boolean> {
   try {
-    await initChat();
+    apiCallCount = 0;
+    responseCache.clear();
+    chatSessions.clear();
+    currentModelIndex = 0;
+    initializeModels();
+    console.log('✅ Chat service reset successfully');
     return true;
   } catch (error) {
     console.error("Error resetting chat:", error);
     return false;
   }
-} 
+}
+
+/**
+ * Get session info
+ */
+export function getSessionInfo() {
+  return {
+    apiCallsUsed: apiCallCount,
+    maxCalls: MAX_CALLS_PER_SESSION,
+    cacheSize: responseCache.size,
+    availableModels: models.length,
+    currentModel: models[currentModelIndex % models.length]?.name || 'none'
+  };
+}
+
+// Initialize models when service loads
+initializeModels();
